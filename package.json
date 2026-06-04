@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:e2e": "node scripts/e2e.mjs",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -13,6 +15,7 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
+    "playwright": "^1.60.0",
     "socket.io-client": "^4.8.3"
   }
 }
