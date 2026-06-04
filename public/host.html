@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>大屏 · Who Is She</title>
+  <link rel="stylesheet" href="/shared.css" />
+  <style>
+    .stage { text-align: center; }
+    .photo-box { position: relative; width: min(70vmin, 600px); aspect-ratio: 1; margin: 16px auto; background:#000; }
+    .photo-box img { width: 100%; height: 100%; object-fit: cover; display:block; }
+    .grid { position: absolute; inset: 0; display: grid; }
+    .tile { background: #0d0d1a; transition: opacity .4s; }
+    .tile.revealed { opacity: 0; }
+    #qr img { width: 180px; }
+    .players span { display:inline-block; background:#16213e; padding:6px 12px; border-radius:20px; margin:4px; }
+    .lead { font-size: 20px; }
+    .lead li { margin: 6px 0; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap stage">
+    <h1>🕵️ Who Is She</h1>
+
+    <div id="lobby">
+      <div id="qr"></div>
+      <p>扫码加入：<b id="joinUrl"></b></p>
+      <div class="players" id="players"></div>
+      <button id="startBtn">开始游戏</button>
+      <p id="lobbyMsg"></p>
+    </div>
+
+    <div id="game" class="hidden">
+      <p>第 <span id="qIndex"></span> / <span id="qTotal"></span> 题 · 已答 <span id="answered">0</span> 人</p>
+      <div class="photo-box">
+        <img id="photo" alt="" />
+        <div class="grid" id="grid"></div>
+      </div>
+      <button id="skipBtn">跳过本轮</button>
+    </div>
+
+    <div id="result" class="hidden">
+      <h2>答案：<span id="answer"></span></h2>
+      <ol class="lead" id="leaderboard"></ol>
+      <button id="nextBtn">下一题 →</button>
+    </div>
+
+    <div id="over" class="hidden">
+      <h2>🏆 最终排行</h2>
+      <ol class="lead" id="finalBoard"></ol>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/host.js"></script>
+</body>
+</html>
