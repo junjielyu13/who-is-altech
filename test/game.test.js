@@ -145,6 +145,22 @@ test('leaderboard 包含 connected 状态', () => {
   assert.equal(bob.connected, false)
 })
 
+test('restart 会清掉已断线的玩家，保留在线玩家', () => {
+  const g = new GameState()
+  g.loadQuiz(makeQuiz())
+  g.addPlayer('p1', 'Alice')
+  g.addPlayer('p2', 'Bob')
+  g.startGame()
+  g.revealNext()
+  g.submitGuess('p1', 'marie curie')
+  g.endRound()
+  g.markDisconnected('p2')   // Bob 的手机离开了
+  g.restart()
+  assert.ok(g.players.has('p1'))      // 在线玩家保留
+  assert.equal(g.players.has('p2'), false) // 断线玩家被清掉
+  assert.equal(g.players.get('p1').totalScore, 0)
+})
+
 test('当前题的答案集合包含正确答案与别名', () => {
   const g = new GameState()
   g.loadQuiz(makeQuiz())

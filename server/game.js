@@ -120,7 +120,12 @@ export class GameState {
     this.currentIndex = -1
     this.revealedCount = 0
     this.submissions = new Map()
-    for (const p of this.players.values()) p.totalScore = 0
+    // Drop players who left (their phone won't come back to this new game); reconnecting
+    // clients re-add themselves by clientId. Keep connected players, reset their scores.
+    for (const [id, p] of this.players) {
+      if (!p.connected) this.players.delete(id)
+      else p.totalScore = 0
+    }
   }
 
   leaderboard() {

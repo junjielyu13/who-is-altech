@@ -88,6 +88,11 @@ async function main() {
     check('the per-player "+score" list was removed', (await host.locator('#roundResults').count()) === 0)
     check('leaderboard is populated', (await host.locator('#leaderboard li').count()) === 3)
     check('leaderboard shows a medal/rank badge', (await host.textContent('#leaderboard li:first-child .rank')).trim().length > 0)
+    // the leader's score bar must actually render with width (catches inline-span / 0-width bugs).
+    // wait out the ~1s grow animation before measuring the rendered width.
+    await sleep(1300)
+    const barW = (await host.locator('#leaderboard li:first-child .bar').boundingBox())?.width || 0
+    check('leader score bar renders with a visible fill', barW > 0)
     check('Next button shows the auto-advance countdown', /\d/.test(await host.textContent('#nextCount')))
     // now the phone reveals its own outcome + updated total
     await phones[0].waitForSelector('#status.ok', { timeout: 4000 })

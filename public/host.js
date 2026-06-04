@@ -217,8 +217,8 @@ socket.on('round:end', ({ answer, leaderboard }) => {
 
 socket.on('game:over', ({ leaderboard }) => {
   clearAutoNext()
-  renderBoard('finalBoard', leaderboard)
-  show('over')
+  show('over')                          // reveal first so the bars/scores animate…
+  renderBoard('finalBoard', leaderboard) // …then grow them in
 })
 
 socket.on('state:full', ({ phase, players, round }) => {
