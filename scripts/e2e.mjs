@@ -88,6 +88,7 @@ async function main() {
     check('the per-player "+score" list was removed', (await host.locator('#roundResults').count()) === 0)
     check('leaderboard is populated', (await host.locator('#leaderboard li').count()) === 3)
     check('leaderboard shows a medal/rank badge', (await host.textContent('#leaderboard li:first-child .rank')).trim().length > 0)
+    check('Next button shows the auto-advance countdown', /\d/.test(await host.textContent('#nextCount')))
     // now the phone reveals its own outcome + updated total
     await phones[0].waitForSelector('#status.ok', { timeout: 4000 })
     check('phone reveals success + score after the round closes', (await phones[0].textContent('#status')).includes('+'))

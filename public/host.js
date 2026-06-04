@@ -51,9 +51,22 @@ function runIntro(from) {
   introTimers.push(setTimeout(hideIntro, from * 1000 + 1500))
 }
 
-// Result screen auto-advances after 5s; the "Siguiente" button still works and cancels the timer.
-function scheduleAutoNext() { clearAutoNext(); nextTimer = setTimeout(() => socket.emit('host:next'), 5000) }
-function clearAutoNext() { if (nextTimer) { clearTimeout(nextTimer); nextTimer = null } }
+// Result screen auto-advances after a 5s countdown shown on the Siguiente button (5→1).
+// Clicking the button (or any navigation) cancels the timer via clearAutoNext().
+function scheduleAutoNext() {
+  clearAutoNext()
+  let n = 5
+  $('nextCount').textContent = n
+  nextTimer = setInterval(() => {
+    n -= 1
+    if (n <= 0) { clearAutoNext(); socket.emit('host:next'); return }
+    $('nextCount').textContent = n
+  }, 1000)
+}
+function clearAutoNext() {
+  if (nextTimer) { clearInterval(nextTimer); nextTimer = null }
+  $('nextCount').textContent = ''
+}
 // Preload a photo so the next round's tiles reveal instantly, with no load flash.
 function preload(url) { if (url) { const img = new Image(); img.src = url } }
 
