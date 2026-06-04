@@ -19,6 +19,7 @@ const io = new Server(server)
 
 const store = new QuizStore(path.join(ROOT, 'quiz.json'))
 const game = new GameState()
+let currentRevealOrder = []
 
 // 静态资源
 app.use(express.static(path.join(ROOT, 'public')))
@@ -34,6 +35,7 @@ app.get('/play', (req, res) => res.sendFile(path.join(ROOT, 'public/play.html'))
 // 上传配置
 const upload = multer({
   dest: path.join(ROOT, 'uploads'),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/')),
 })
 
@@ -88,7 +90,7 @@ function startRoundBroadcast() {
     const j = Math.floor(Math.random() * (i + 1))
     ;[order[i], order[j]] = [order[j], order[i]]
   }
-  game._revealOrder = order
+  currentRevealOrder = order
   io.emit('round:start', {
     index: game.currentIndex,
     total: game.quiz.questions.length,
@@ -123,22 +125,38 @@ function finishRound() {
 }
 
 io.on('connection', (socket) => {
-  socket.on('player:join', async ({ nickname }) => {
+  socket.on('player:join', async ({ nickname, clientId }) => {
     if (game.quiz.questions.length === 0) game.loadQuiz(await store.load())
-    game.addPlayer(socket.id, String(nickname || '玩家').slice(0, 20))
-    socket.emit('player:joined', { playerId: socket.id })
+    const pid = clientId || socket.id
+    socket.data.playerId = pid
+    game.addPlayer(pid, String(nickname || '玩家').slice(0, 20))
+    socket.emit('player:joined', { playerId: pid })
     io.emit('lobby:update', { players: game.leaderboard() })
   })
 
   socket.on('player:submit', ({ guess }) => {
-    const result = game.submitGuess(socket.id, guess)
+    const result = game.submitGuess(socket.data.playerId, guess)
     socket.emit('player:result', result)
     io.emit('round:answered', { answeredCount: game.answeredCount() })
   })
 
   socket.on('host:hello', async () => {
-    game.loadQuiz(await store.load())
-    socket.emit('state:full', { phase: game.phase, players: game.leaderboard() })
+    if (game.phase === 'LOBBY') game.loadQuiz(await store.load())
+    let round = null
+    if (game.phase === 'REVEALING' || game.phase === 'ROUND_RESULT') {
+      const q = game.currentQuestion()
+      round = {
+        index: game.currentIndex,
+        total: game.quiz.questions.length,
+        photoUrl: `/uploads/${q.photoFile}`,
+        grid: q.grid,
+        revealOrder: currentRevealOrder,
+        revealedCount: game.revealedCount,
+        answer: game.phase === 'ROUND_RESULT' ? q.answer : null,
+        leaderboard: game.leaderboard(),
+      }
+    }
+    socket.emit('state:full', { phase: game.phase, players: game.leaderboard(), round })
   })
 
   socket.on('host:start', async () => {
@@ -154,6 +172,7 @@ io.on('connection', (socket) => {
   socket.on('host:skip', () => finishRound())
 
   socket.on('host:next', () => {
+    if (game.phase !== 'ROUND_RESULT' && game.phase !== 'GAME_OVER') return
     game.nextRound()
     if (game.phase === 'GAME_OVER') {
       io.emit('game:over', { leaderboard: game.leaderboard() })
@@ -163,7 +182,7 @@ io.on('connection', (socket) => {
   })
 
   socket.on('disconnect', () => {
-    game.markDisconnected(socket.id)
+    if (socket.data.playerId) game.markDisconnected(socket.data.playerId)
     io.emit('lobby:update', { players: game.leaderboard() })
   })
 })

@@ -3,9 +3,13 @@ const $ = (id) => document.getElementById(id)
 
 async function refresh() {
   const quiz = await (await fetch('/api/quiz')).json()
-  $('list').innerHTML = quiz.questions
-    .map((q, i) => `<li>#${i + 1} <b>${q.answer}</b> — ${q.grid.rows}×${q.grid.cols}，${q.intervalMs}ms${q.aliases.length ? '（别名：' + q.aliases.join('、') + '）' : ''}</li>`)
-    .join('')
+  const list = $('list'); list.innerHTML = ''
+  quiz.questions.forEach((q, i) => {
+    const li = document.createElement('li')
+    const aliasPart = q.aliases.length ? `（别名：${q.aliases.join('、')}）` : ''
+    li.textContent = `#${i + 1} ${q.answer} — ${q.grid.rows}×${q.grid.cols}，${q.intervalMs}ms${aliasPart}`
+    list.appendChild(li)
+  })
 }
 
 $('add').onclick = async () => {

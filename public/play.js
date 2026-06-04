@@ -9,9 +9,12 @@ let joined = false
 const savedNick = localStorage.getItem('wis_nick')
 if (savedNick) $('nickname').value = savedNick
 
+let clientId = localStorage.getItem('wis_id')
+if (!clientId) { clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('wis_id', clientId) }
+
 function doJoin(nick) {
   localStorage.setItem('wis_nick', nick)
-  socket.emit('player:join', { nickname: nick })
+  socket.emit('player:join', { nickname: nick, clientId })
 }
 
 $('joinBtn').onclick = () => doJoin($('nickname').value.trim() || '玩家')
@@ -20,7 +23,7 @@ socket.on('connect', () => {
   // 断线重连后，如果之前已经加入过，用保存的昵称自动重新加入
   if (joined) {
     const nick = localStorage.getItem('wis_nick')
-    if (nick) socket.emit('player:join', { nickname: nick })
+    if (nick) socket.emit('player:join', { nickname: nick, clientId })
   }
 })
 
