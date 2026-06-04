@@ -3,29 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title data-i18n="admin_title">Configurar fotos · Who Is She</title>
+  <title data-i18n="admin_title">Fotos · Who Is She</title>
   <link rel="stylesheet" href="/shared.css" />
+  <style>
+    #list { list-style: none; padding: 0; }
+    #list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #2a2a44; }
+    #list img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: #000; }
+    #list .name { flex: 1; }
+  </style>
 </head>
 <body>
   <div class="wrap">
-    <h1 data-i18n="admin_h1">📋 Configurar fotos</h1>
+    <h1 data-i18n="admin_h1">📋 Fotos del juego</h1>
     <div class="card">
-      <h3 data-i18n="admin_add">Añadir una foto</h3>
+      <p data-i18n="admin_hint"></p>
       <div class="row">
-        <input type="file" id="photo" accept="image/*" />
-        <input type="text" id="answer" data-i18n-ph="ph_answer" placeholder="" />
-        <input type="text" id="aliases" data-i18n-ph="ph_aliases" placeholder="" />
-      </div>
-      <div class="row" style="margin-top:10px">
-        <span data-i18n="grid_label">Cuadrícula</span> <input type="number" id="rows" value="4" min="2" max="8" style="width:60px" /> ×
-        <input type="number" id="cols" value="4" min="2" max="8" style="width:60px" />
-        <span data-i18n="interval_label">Intervalo por bloque (ms)</span> <input type="number" id="interval" value="3000" step="500" style="width:90px" />
-        <button id="add" data-i18n="btn_add">Añadir</button>
+        <input type="file" id="photos" accept="image/*" multiple />
+        <button id="upload" data-i18n="btn_upload">Subir fotos</button>
       </div>
       <p id="msg"></p>
     </div>
     <div class="card">
-      <h3 data-i18n="configured_list">Fotos configuradas</h3>
+      <h3 data-i18n="configured_list">Fotos del juego</h3>
       <ul id="list"></ul>
     </div>
     <a href="/host"><button data-i18n="go_host">Ir a la pantalla del anfitrión →</button></a>

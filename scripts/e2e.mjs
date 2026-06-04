@@ -1,5 +1,5 @@
 // scripts/e2e.mjs — headless end-to-end test of the whole game with 1 host + 3 players.
-// Spawns its own server on an isolated port + temp quiz (never touches your real quiz.json),
+// Spawns its own server on an isolated port + temp uploads dir (never touches your real uploads/),
 // drives a full game through Playwright, asserts the UI behaves, and exits non-zero on failure.
 // Run: npm run test:e2e
 import { chromium } from 'playwright'
@@ -11,7 +11,7 @@ import path from 'node:path'
 const ROOT = path.join(import.meta.dirname, '..')
 const PORT = process.env.E2E_PORT || '3994'
 const BASE = `http://localhost:${PORT}`
-const QUIZ_PATH = path.join(os.tmpdir(), `wis-e2e-${process.pid}.json`)
+const UPLOADS_DIR = path.join(os.tmpdir(), `wis-e2e-uploads-${process.pid}`)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let pass = 0
@@ -20,14 +20,18 @@ function check(name, cond) {
   if (cond) { pass++; console.log('  ✓', name) } else { fail++; console.log('  ✗ FAILED:', name) }
 }
 
+// the answer is the current photo's file name without extension (questions are name-based now)
+async function currentAnswer(host) {
+  const src = await host.getAttribute('#photo', 'src')
+  return decodeURIComponent(src.split('/').pop()).replace(/\.[^.]+$/, '')
+}
+
 async function main() {
-  await fs.writeFile(QUIZ_PATH, JSON.stringify({
-    questions: [
-      { id: 'a', photoFile: 'x.jpg', answer: 'Junjie', aliases: ['君杰'], grid: { rows: 2, cols: 2 }, intervalMs: 2000 },
-      { id: 'b', photoFile: 'y.jpg', answer: 'Jaquero', aliases: [], grid: { rows: 2, cols: 2 }, intervalMs: 2000 },
-    ],
-  }))
-  const server = spawn('node', ['server/index.js'], { cwd: ROOT, env: { ...process.env, PORT, QUIZ_PATH } })
+  // file name = answer; two photos. Content can be empty — the flow doesn't need real pixels.
+  await fs.mkdir(UPLOADS_DIR, { recursive: true })
+  await fs.writeFile(path.join(UPLOADS_DIR, 'Junjie.jpg'), '')
+  await fs.writeFile(path.join(UPLOADS_DIR, 'Jaquero.png'), '')
+  const server = spawn('node', ['server/index.js'], { cwd: ROOT, env: { ...process.env, PORT, UPLOADS_DIR } })
   await sleep(900)
   const browser = await chromium.launch({ headless: true })
   try {
@@ -63,13 +67,14 @@ async function main() {
     check('host shows the round countdown timer', await host.isVisible('#timer'))
     check('phone shows the guess box', await phones[0].isVisible('#guess'))
 
-    // guesses: Ana (alias, correct), Bo (correct), Cris (wrong)
-    await phones[0].fill('#guess', '君杰'); await phones[0].click('#submitBtn')
+    // guesses: Ana (correct, lowercased to also exercise fuzzy match), Bo (correct), Cris (wrong)
+    const ans1 = await currentAnswer(host)
+    await phones[0].fill('#guess', ans1.toLowerCase()); await phones[0].click('#submitBtn')
     await phones[0].waitForSelector('#submitBtn[disabled]', { timeout: 4000 })
     // the phone must NOT reveal correctness/score at submit time — only after the round
     check('phone does not reveal score at submit time', !(await phones[0].textContent('#status')).includes('+'))
     check('phone does not show success styling at submit time', !(await phones[0].locator('#status.ok').count()))
-    await phones[1].fill('#guess', 'junjie'); await phones[1].click('#submitBtn')
+    await phones[1].fill('#guess', ans1); await phones[1].click('#submitBtn')
     await phones[2].fill('#guess', 'no idea'); await phones[2].click('#submitBtn')
     await sleep(500)
     check('host shows a ✓ chip for each of the 3 who answered', (await host.locator('#answeredList .chip').count()) === 3)
@@ -77,7 +82,7 @@ async function main() {
     // end round → result screen + leaderboard
     await host.click('#skipBtn')
     await host.waitForSelector('#result:not(.hidden)', { timeout: 4000 })
-    check('result screen shows the answer', (await host.textContent('#answer')).includes('Junjie'))
+    check('result screen shows the answer', (await host.textContent('#answer')).includes(ans1))
     check('round results list the correct guessers', (await host.locator('#roundResults li').count()) === 2)
     check('leaderboard is populated', (await host.locator('#leaderboard li').count()) === 3)
     // now the phone reveals its own outcome + updated total
@@ -89,7 +94,8 @@ async function main() {
     await host.click('#nextBtn')
     await host.waitForSelector('#game:not(.hidden)', { timeout: 4000 })
     await phones[2].waitForSelector('#playView:not(.hidden)', { timeout: 4000 })
-    await phones[2].fill('#guess', 'jaquero'); await phones[2].click('#submitBtn')
+    const ans2 = await currentAnswer(host)
+    await phones[2].fill('#guess', ans2); await phones[2].click('#submitBtn')
     await sleep(400)
     await host.click('#skipBtn')
     await host.waitForSelector('#result:not(.hidden)', { timeout: 4000 })
@@ -108,7 +114,7 @@ async function main() {
   } finally {
     await browser.close()
     server.kill()
-    await fs.rm(QUIZ_PATH, { force: true })
+    await fs.rm(UPLOADS_DIR, { recursive: true, force: true })
   }
   console.log(`\n${pass} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)

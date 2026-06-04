@@ -1,36 +1,36 @@
-// public/admin.js
+// public/admin.js — upload photos (file name = answer) and manage the list. No quiz.json.
 const $ = (id) => document.getElementById(id)
 const { t, applyI18n, mountLangSwitch } = I18N
 
 async function refresh() {
   const quiz = await (await fetch('/api/quiz')).json()
   const list = $('list'); list.innerHTML = ''
-  quiz.questions.forEach((q, i) => {
+  if (!quiz.questions.length) {
+    const li = document.createElement('li'); li.textContent = t('empty_list'); list.appendChild(li)
+    return
+  }
+  for (const q of quiz.questions) {
     const li = document.createElement('li')
-    const aliasPart = q.aliases.length ? t('alias_part', { aliases: q.aliases.join('、') }) : ''
-    li.textContent = `#${i + 1} ${q.answer} — ${q.grid.rows}×${q.grid.cols}, ${q.intervalMs}ms${aliasPart}`
+    const img = document.createElement('img'); img.src = '/uploads/' + encodeURIComponent(q.photoFile); img.alt = ''
+    const name = document.createElement('span'); name.className = 'name'; name.textContent = q.answer
+    const del = document.createElement('button')
+    del.textContent = t('btn_delete'); del.style.cssText = 'padding:6px 12px;font-size:13px'
+    del.onclick = async () => { await fetch('/api/photos/' + encodeURIComponent(q.photoFile), { method: 'DELETE' }); refresh() }
+    li.append(img, name, del)
     list.appendChild(li)
-  })
+  }
 }
 
-$('add').onclick = async () => {
-  const file = $('photo').files[0]
-  if (!file) { $('msg').textContent = t('msg_pick_photo'); return }
-  if (!$('answer').value.trim()) { $('msg').textContent = t('msg_need_answer'); return }
+$('upload').onclick = async () => {
+  const files = $('photos').files
+  if (!files.length) { $('msg').textContent = t('msg_pick_photo'); return }
   const fd = new FormData()
-  fd.append('photo', file)
-  fd.append('answer', $('answer').value)
-  fd.append('aliases', $('aliases').value)
-  fd.append('rows', $('rows').value)
-  fd.append('cols', $('cols').value)
-  fd.append('intervalMs', $('interval').value)
-  const res = await fetch('/api/questions', { method: 'POST', body: fd })
+  for (const f of files) fd.append('photos', f)
+  const res = await fetch('/api/photos', { method: 'POST', body: fd })
   const data = await res.json()
-  if (!res.ok) { $('msg').textContent = t('msg_error') + data.error; return }
+  if (!res.ok) { $('msg').textContent = t('msg_error') + (data.error || ''); return }
   $('msg').textContent = t('msg_added')
-  $('photo').value = ''
-  $('answer').value = ''
-  $('aliases').value = ''
+  $('photos').value = ''
   refresh()
 }
 

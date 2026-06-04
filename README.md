@@ -26,8 +26,9 @@ LAN IP. (Testing solo on one machine? Just open `/play` in another tab.)
 
 ## How to play
 
-1. **/admin** — upload a few photos, each with the correct name and optional comma-separated aliases;
-   pick the grid size (default 4×4) and reveal interval (default 3000 ms). Saved to `quiz.json`.
+1. **Add photos** — drop image files straight into the `uploads/` folder, or upload them on
+   **/admin**. **The file name is the answer**: `junjie.jpeg` → answer "junjie", `Marie Curie.png`
+   → "Marie Curie". Every photo uses a 4×4 grid revealing one tile every 3 s.
 2. **/host** — players scan the QR and land in a **waiting room (sala de espera)** where everyone
    sees who has joined. Press **Start**.
 3. A synchronized **3 · 2 · 1** plays on the big screen and every phone, then round 1 begins.
@@ -46,8 +47,8 @@ LAN IP. (Testing solo on one machine? Just open `/play` in another tab.)
 if you only get it on the very last tile. Everyone who answers correctly scores (not just the first),
 each based on how early they locked in. One submission per player per round.
 
-Answer matching is forgiving: case-insensitive, ignores extra spaces and punctuation, accepts any
-listed alias, and tolerates a single-character typo (Damerau–Levenshtein distance ≤ 1).
+Answer matching is forgiving: case-insensitive, ignores extra spaces and punctuation, and tolerates
+a single-character typo (Damerau–Levenshtein distance ≤ 1).
 
 ## Project layout
 
@@ -56,12 +57,12 @@ server/
   scoring.js     pure: the scoring formula
   matching.js    pure: answer normalization + fuzzy match
   game.js        GameState machine (LOBBY → REVEALING → ROUND_RESULT → GAME_OVER)
-  quizStore.js   reads/writes quiz.json (honors the QUIZ_PATH env override)
+  quizFromUploads.js  builds the quiz by scanning uploads/ (file name = answer)
   index.js       Express + Socket.IO server: pages, uploads, QR, realtime
 public/
   i18n.js        translation dictionary (es default + zh) + t()/applyI18n()/language switch
   shared.css     shared styling
-  admin.{html,js}  config page
+  admin.{html,js}  photo uploader / manager
   host.{html,js}   big screen
   play.{html,js}   phone
 test/            node:test suites (unit + socket integration)
@@ -81,8 +82,8 @@ npm test          # node:test — unit (scoring, matching, game state, i18n) + s
 npm run test:e2e  # Playwright — headless full game with 1 host + 3 players, asserts the real UI
 ```
 
-`npm run test:e2e` spawns its own server on an isolated port with a temporary quiz file, so it never
-touches your real `quiz.json`. See [CLAUDE.md](./CLAUDE.md) for the development workflow (every feature
+`npm run test:e2e` spawns its own server on an isolated port with a temporary uploads dir, so it never
+touches your real `uploads/`. See [CLAUDE.md](./CLAUDE.md) for the development workflow (every feature
 gets a test).
 
 Want to *watch* a game instead of just asserting it? `npm run demo` opens four real browser windows
@@ -91,6 +92,6 @@ Want to *watch* a game instead of just asserting it? `npm run demo` opens four r
 ## Configuration
 
 - `PORT` — server port (default `3000`).
-- `QUIZ_PATH` — path to the quiz JSON file (default `./quiz.json`). Used by the tests for isolation.
+- `UPLOADS_DIR` — folder of photos that defines the quiz (default `./uploads`). Used by the tests for isolation.
 
-`quiz.json` and uploaded images (`uploads/`) are git-ignored — they're per-event data, not code.
+The images in `uploads/` are git-ignored — they're per-event data, not code.

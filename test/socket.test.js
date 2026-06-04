@@ -7,8 +7,9 @@ import { spawn } from 'node:child_process'
 import { io as Client } from 'socket.io-client'
 
 const ROOT = path.join(import.meta.dirname, '..')
-// Use an isolated temp quiz file so the test never touches the project's real quiz.json.
-const QUIZ_PATH = path.join(os.tmpdir(), `wis-test-quiz-${process.pid}.json`)
+// Use an isolated temp uploads dir so the test never touches the project's real uploads/.
+// The file name IS the answer, so "Marie Curie.jpg" → answer "Marie Curie".
+const UPLOADS_DIR = path.join(os.tmpdir(), `wis-test-uploads-${process.pid}`)
 let proc
 
 function waitFor(socket, event) {
@@ -16,17 +17,15 @@ function waitFor(socket, event) {
 }
 
 before(async () => {
-  await fs.writeFile(
-    QUIZ_PATH,
-    JSON.stringify({ questions: [{ id: 'q1', photoFile: 'none.jpg', answer: 'Marie Curie', aliases: [], grid: { rows: 2, cols: 2 }, intervalMs: 200 }] })
-  )
-  proc = spawn('node', ['server/index.js'], { cwd: ROOT, env: { ...process.env, PORT: '3999', QUIZ_PATH } })
+  await fs.mkdir(UPLOADS_DIR, { recursive: true })
+  await fs.writeFile(path.join(UPLOADS_DIR, 'Marie Curie.jpg'), '')
+  proc = spawn('node', ['server/index.js'], { cwd: ROOT, env: { ...process.env, PORT: '3999', UPLOADS_DIR } })
   await new Promise((r) => setTimeout(r, 800))
 })
 
 after(async () => {
   proc.kill()
-  await fs.rm(QUIZ_PATH, { force: true })
+  await fs.rm(UPLOADS_DIR, { recursive: true, force: true })
 })
 
 test('玩家加入并收到 lobby 更新', async () => {

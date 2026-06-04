@@ -44,17 +44,24 @@ for (const d of defs) {
 log('3 players joined — watch the lobby')
 await sleep(3000)
 
+// the answer is the current photo's file name (sans extension)
+async function currentAnswer() {
+  const src = await host.page.getAttribute('#photo', 'src')
+  return decodeURIComponent(src.split('/').pop()).replace(/\.[^.]+$/, '')
+}
+
 try {
 // ---- Round 1 (first photo) ----
 await host.page.click('#startBtn')
 log('host started — 3-2-1 countdown for everyone')
 await sleep(4500) // let the 3-2-1 intro finish and round 1 begin
 log('round 1 — tiles revealing, countdown running')
-await guess(phones[0], 'junjie')   // Ana — early, correct
+const ans1 = await currentAnswer()
+await guess(phones[0], ans1)        // Ana — early, correct
 log('Ana locked in (early)')
 await sleep(3000)
-await guess(phones[1], '君杰')      // Bo — alias, correct
-log('Bo locked in (alias)')
+await guess(phones[1], ans1)        // Bo — correct
+log('Bo locked in')
 await sleep(2500)
 await guess(phones[2], 'no lo sé')  // Cris — wrong
 log('Cris locked in (wrong)')
@@ -67,10 +74,11 @@ await sleep(5000)
 await host.page.click('#nextBtn')
 log('round 2 started')
 await sleep(3000)
-await guess(phones[2], 'jaquero')   // Cris — early, correct (climbs the ranking)
+const ans2 = await currentAnswer()
+await guess(phones[2], ans2)        // Cris — early, correct (climbs the ranking)
 log('Cris locked in (early)')
 await sleep(3000)
-await guess(phones[0], 'jaquero')   // Ana — later, correct
+await guess(phones[0], ans2)        // Ana — later, correct
 log('Ana locked in (later)')
 await sleep(2000)
 await guess(phones[1], '???')       // Bo — wrong

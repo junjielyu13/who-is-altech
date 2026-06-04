@@ -6,25 +6,28 @@ import { Server } from 'socket.io'
 import multer from 'multer'
 import QRCode from 'qrcode'
 import os from 'node:os'
+import { promises as fs } from 'node:fs'
 import { GameState } from './game.js'
-import { QuizStore } from './quizStore.js'
+import { buildQuiz } from './quizFromUploads.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
 const PORT = process.env.PORT || 3000
+// The quiz is just the images in this folder: each file's name (sans extension) is the answer.
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(ROOT, 'uploads')
+const loadQuiz = () => buildQuiz(UPLOADS_DIR)
 
 const app = express()
 const server = http.createServer(app)
 const io = new Server(server)
 
-const store = new QuizStore(process.env.QUIZ_PATH || path.join(ROOT, 'quiz.json'))
 const game = new GameState()
 let currentRevealOrder = []
 let countingDown = false // true during the 3-2-1 intro between host:start and the first round
 
 // 静态资源
 app.use(express.static(path.join(ROOT, 'public')))
-app.use('/uploads', express.static(path.join(ROOT, 'uploads')))
+app.use('/uploads', express.static(UPLOADS_DIR))
 app.use(express.json())
 
 // 页面路由
@@ -33,31 +36,34 @@ app.get('/admin', (req, res) => res.sendFile(path.join(ROOT, 'public/admin.html'
 app.get('/host', (req, res) => res.sendFile(path.join(ROOT, 'public/host.html')))
 app.get('/play', (req, res) => res.sendFile(path.join(ROOT, 'public/play.html')))
 
-// 上传配置
+// Uploads keep their ORIGINAL file name — the name (sans extension) is the answer.
 const upload = multer({
-  dest: path.join(ROOT, 'uploads'),
+  storage: multer.diskStorage({
+    destination: UPLOADS_DIR,
+    filename: (req, file, cb) => cb(null, path.basename(file.originalname)),
+  }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/')),
 })
 
-app.post('/api/questions', upload.single('photo'), async (req, res) => {
+// Upload one or more photos; each file's name becomes a question.
+app.post('/api/photos', upload.array('photos', 50), (req, res) => {
+  if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'no_image' })
+  res.json({ added: req.files.map((f) => f.filename) })
+})
+
+// Delete a photo (and thus its question) by file name.
+app.delete('/api/photos/:name', async (req, res) => {
+  const name = path.basename(req.params.name) // prevent path traversal
   try {
-    if (!req.file) return res.status(400).json({ error: '需要上传图片文件' })
-    const aliases = (req.body.aliases || '').split(',').map((s) => s.trim()).filter(Boolean)
-    const q = await store.addQuestion({
-      photoFile: req.file.filename,
-      answer: req.body.answer,
-      aliases,
-      grid: { rows: Number(req.body.rows) || 4, cols: Number(req.body.cols) || 4 },
-      intervalMs: Number(req.body.intervalMs) || 3000,
-    })
-    res.json(q)
+    await fs.unlink(path.join(UPLOADS_DIR, name))
+    res.json({ deleted: name })
   } catch (err) {
-    res.status(400).json({ error: err.message })
+    res.status(404).json({ error: 'not_found' })
   }
 })
 
-app.get('/api/quiz', async (req, res) => res.json(await store.load()))
+app.get('/api/quiz', async (req, res) => res.json(await loadQuiz()))
 
 // 本机局域网 IP（给大屏生成二维码用）
 function lanIp() {
@@ -127,7 +133,7 @@ function finishRound() {
 
 io.on('connection', (socket) => {
   socket.on('player:join', async ({ nickname, clientId }) => {
-    if (game.quiz.questions.length === 0) game.loadQuiz(await store.load())
+    if (game.quiz.questions.length === 0) game.loadQuiz(await loadQuiz())
     const pid = clientId || socket.id
     socket.data.playerId = pid
     game.addPlayer(pid, String(nickname || '玩家').slice(0, 20))
@@ -147,7 +153,7 @@ io.on('connection', (socket) => {
   })
 
   socket.on('host:hello', async () => {
-    if (game.phase === 'LOBBY') game.loadQuiz(await store.load())
+    if (game.phase === 'LOBBY') game.loadQuiz(await loadQuiz())
     let round = null
     if (game.phase === 'REVEALING' || game.phase === 'ROUND_RESULT') {
       const q = game.currentQuestion()
@@ -168,7 +174,7 @@ io.on('connection', (socket) => {
 
   socket.on('host:start', async () => {
     if (game.phase !== 'LOBBY' || countingDown) return
-    game.loadQuiz(await store.load())
+    game.loadQuiz(await loadQuiz())
     if (game.quiz.questions.length === 0) {
       socket.emit('host:error', { code: 'empty_quiz' })
       return
@@ -188,7 +194,7 @@ io.on('connection', (socket) => {
   socket.on('host:restart', async () => {
     stopReveal()
     game.restart()
-    game.loadQuiz(await store.load())
+    game.loadQuiz(await loadQuiz())
     io.emit('game:reset')
     io.emit('lobby:update', { players: game.leaderboard() })
   })

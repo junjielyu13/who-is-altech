@@ -27,8 +27,8 @@ Rules:
   tests can't reach. The e2e drives 1 host + 3 phones through a whole game and checks the DOM.
 - Both suites must be **green before you claim the work is complete or commit.** Don't describe
   behavior as working until you've run the test that proves it.
-- The e2e and socket tests spawn their own server with an isolated `QUIZ_PATH`, so they never clobber
-  a configured `quiz.json`. Keep it that way — never point a test at the real quiz file.
+- The e2e and socket tests spawn their own server with an isolated `UPLOADS_DIR`, so they never touch
+  the real `uploads/`. Keep it that way — never point a test at the real photo folder.
 
 To eyeball a change in real browsers (not just assert it), `npm run demo` opens the big screen + three
 phones and plays through live.
@@ -37,8 +37,13 @@ phones and plays through live.
 
 - **Pure logic, separately testable** — `server/scoring.js`, `server/matching.js`, `server/game.js`
   (the `GameState` machine) have no I/O. Keep them pure; that's why they're easy to unit-test.
-- **I/O lives in** `server/quizStore.js` (file persistence; honors `QUIZ_PATH`) and `server/index.js`
-  (Express routes, uploads, QR, Socket.IO wiring). A single in-memory `GameState` serves one game.
+- **The quiz is the `uploads/` folder.** `server/quizFromUploads.js` scans it and turns each image
+  file into a question whose answer is the file name without its extension (`junjie.jpeg` → "junjie"),
+  ordered by file name, with a default 4×4 grid / 3 s interval. There is no `quiz.json`. `/admin`
+  uploads (preserving the original file name) and a DELETE endpoint are just convenience on top of the
+  folder — you can also drop/remove files directly.
+- **I/O lives in** `server/index.js` (Express routes, uploads, QR, Socket.IO wiring) and
+  `server/quizFromUploads.js`. A single in-memory `GameState` serves one game.
 - **Front end** — three independent pages under `public/`, each a classic `<script>` (not modules):
   `admin` (config), `host` (big screen), `play` (phone). They share `i18n.js` and `shared.css`.
 
@@ -70,12 +75,12 @@ Key behaviors to preserve when editing:
 - ES modules everywhere; no transpiler/bundler. Match the existing terse, comment-light style.
 - Render user-supplied text (nicknames, answers) with `textContent`/DOM nodes, never string-built
   `innerHTML` — this is a trusted-LAN tool but the XSS-safe pattern is already established; keep it.
-- `quiz.json` and `uploads/` are git-ignored (per-event data). Don't commit them.
+- `uploads/` is git-ignored (per-event photos). Don't commit images.
 - Commit only when asked. Branch work lives on `feat/who-is-she-game`.
 
 ## Run / restart notes
 
 - `npm start` serves on `PORT` (default 3000). Static files are read per request, so front-end edits
   show up on a **page refresh** — no restart needed. Restart only after editing `server/*.js`.
-- Game state is in memory; restarting the server clears players and returns to the lobby (the
-  configured `quiz.json` persists on disk).
+- Game state is in memory; restarting the server clears players and returns to the lobby (the photos
+  in `uploads/` persist on disk, so the quiz is unchanged).
