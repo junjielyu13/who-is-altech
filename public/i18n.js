@@ -4,9 +4,9 @@
 ;(function (global) {
   const TRANSLATIONS = {
     es: {
-      brand: 'Who Is She',
+      brand: 'Who Is Altech',
       // admin
-      admin_title: 'Fotos · Who Is She',
+      admin_title: 'Fotos · Who Is Altech',
       admin_h1: '📋 Fotos del juego',
       admin_hint: 'El nombre del archivo es la respuesta. Ej.: junjie.jpeg → respuesta «junjie». También puedes poner imágenes directamente en la carpeta uploads/.',
       btn_upload: 'Subir fotos',
@@ -18,7 +18,7 @@
       btn_delete: 'Eliminar',
       empty_list: 'Aún no hay fotos. Sube algunas arriba.',
       // host
-      host_title: 'Pantalla · Who Is She',
+      host_title: 'Pantalla · Who Is Altech',
       scan_join: 'Escanea para unirte:',
       btn_start: 'Empezar juego',
       round_progress: 'Foto {i}/{n} · {a} han respondido',
@@ -31,7 +31,7 @@
       error_empty_quiz: 'No se puede empezar: no hay fotos configuradas',
       error_generic: 'No se puede empezar',
       // play
-      play_title: 'Unirse · Who Is She',
+      play_title: 'Unirse · Who Is Altech',
       ph_nickname: 'Tu apodo',
       btn_join: 'Unirse al juego',
       wait_title: 'Sala de espera',
@@ -49,8 +49,8 @@
       default_nick: 'Jugador',
     },
     zh: {
-      brand: 'Who Is She',
-      admin_title: '照片 · Who Is She',
+      brand: 'Who Is Altech',
+      admin_title: '照片 · Who Is Altech',
       admin_h1: '📋 游戏照片',
       admin_hint: '文件名就是答案，例如 junjie.jpeg → 答案“junjie”。也可以直接把图片放进 uploads/ 文件夹。',
       btn_upload: '上传照片',
@@ -61,7 +61,7 @@
       msg_error: '错误：',
       btn_delete: '删除',
       empty_list: '还没有照片，在上面上传几张吧。',
-      host_title: '大屏 · Who Is She',
+      host_title: '大屏 · Who Is Altech',
       scan_join: '扫码加入：',
       btn_start: '开始游戏',
       round_progress: '第 {i}/{n} 题 · 已答 {a} 人',
@@ -73,7 +73,7 @@
       round_result: '{name} 猜中 +{score}',
       error_empty_quiz: '无法开始：题库为空',
       error_generic: '无法开始',
-      play_title: '加入 · Who Is She',
+      play_title: '加入 · Who Is Altech',
       ph_nickname: '你的昵称',
       btn_join: '加入游戏',
       wait_title: '等待大厅',

@@ -215,4 +215,4 @@ io.on('connection', (socket) => {
   })
 })
 
-server.listen(PORT, () => console.log(`Who Is She → http://localhost:${PORT}`))
+server.listen(PORT, () => console.log(`Who Is Altech → http://localhost:${PORT}`))

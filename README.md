@@ -1,4 +1,4 @@
-# 🕵️ Who Is She
+# 🕵️ Who Is Altech
 
 A Kahoot-style party game for one room. A big screen reveals a photo **tile by tile**; players
 join from their phones, type **who they think it is**, and the **earlier you guess correctly, the
