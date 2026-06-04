@@ -109,6 +109,7 @@ function startRoundBroadcast() {
 }
 
 function finishRound() {
+  if (game.phase !== 'REVEALING') return
   stopReveal()
   game.endRound()
   const q = game.currentQuestion()
