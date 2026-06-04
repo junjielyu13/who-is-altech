@@ -7,6 +7,30 @@ const { t, applyI18n, mountLangSwitch } = I18N
 let revealOrder = []
 let prog = { i: 0, n: 0, a: 0 }      // current round progress, for re-render on lang change
 let lastResults = []                 // last round's per-player results
+let cdInterval = null                // countdown timer handle
+
+// Kahoot-style countdown: counts down `totalMs` to 0, ring depletes, turns red + pulses in the last 5s.
+function startCountdown(totalMs) {
+  stopCountdown()
+  const timer = $('timer')
+  const end = performance.now() + totalMs
+  const tick = () => {
+    const remain = Math.max(0, end - performance.now())
+    const pct = totalMs > 0 ? (remain / totalMs) * 100 : 0
+    const urgent = remain > 0 && remain <= 5000
+    $('timerNum').textContent = Math.ceil(remain / 1000)
+    timer.style.setProperty('--pct', pct + '%')
+    timer.style.setProperty('--c', urgent ? '#ef476f' : '#06d6a0')
+    timer.classList.toggle('urgent', urgent)
+    if (remain <= 0) stopCountdown()
+  }
+  tick()
+  cdInterval = setInterval(tick, 100)
+}
+function stopCountdown() {
+  if (cdInterval) { clearInterval(cdInterval); cdInterval = null }
+  $('timer').classList.remove('urgent')
+}
 
 // 加载二维码
 fetch('/api/qrcode').then((r) => r.json()).then(({ url, dataUrl }) => {
@@ -60,12 +84,17 @@ $('nextBtn').onclick = () => socket.emit('host:next')
 
 socket.on('host:error', ({ code }) => { $('lobbyMsg').textContent = t('error_' + (code || 'generic')) })
 
-socket.on('round:start', (data) => { buildRound(data); show('game') })
+socket.on('round:start', (data) => {
+  buildRound(data)
+  startCountdown(data.grid.rows * data.grid.cols * data.intervalMs)
+  show('game')
+})
 socket.on('round:reveal', ({ revealedCount }) => applyReveal(revealedCount))
 
 socket.on('round:answered', ({ answeredCount }) => { prog.a = answeredCount; renderProgress() })
 
 socket.on('round:end', ({ answer, results, leaderboard }) => {
+  stopCountdown()
   $('answer').textContent = answer
   lastResults = results
   renderResults()
@@ -80,7 +109,13 @@ socket.on('game:over', ({ leaderboard }) => {
 
 socket.on('state:full', ({ phase, players, round }) => {
   renderPlayers(players)
-  if (phase === 'REVEALING' && round) { buildRound(round); applyReveal(round.revealedCount); show('game') }
+  stopCountdown()
+  if (phase === 'REVEALING' && round) {
+    buildRound(round); applyReveal(round.revealedCount)
+    const tiles = round.grid.rows * round.grid.cols
+    startCountdown(Math.max(0, tiles - round.revealedCount) * round.intervalMs)
+    show('game')
+  }
   else if (phase === 'ROUND_RESULT' && round) { buildRound(round); applyReveal(round.revealedCount); $('answer').textContent = round.answer; renderBoard('leaderboard', round.leaderboard); show('result') }
   else if (phase === 'GAME_OVER') { renderBoard('finalBoard', players); show('over') }
 })

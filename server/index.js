@@ -17,7 +17,7 @@ const app = express()
 const server = http.createServer(app)
 const io = new Server(server)
 
-const store = new QuizStore(path.join(ROOT, 'quiz.json'))
+const store = new QuizStore(process.env.QUIZ_PATH || path.join(ROOT, 'quiz.json'))
 const game = new GameState()
 let currentRevealOrder = []
 
@@ -150,6 +150,7 @@ io.on('connection', (socket) => {
         total: game.quiz.questions.length,
         photoUrl: `/uploads/${q.photoFile}`,
         grid: q.grid,
+        intervalMs: q.intervalMs,
         revealOrder: currentRevealOrder,
         revealedCount: game.revealedCount,
         answer: game.phase === 'ROUND_RESULT' ? q.answer : null,

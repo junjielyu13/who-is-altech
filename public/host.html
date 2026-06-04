@@ -17,6 +17,16 @@
     .lead { font-size: 20px; }
     .lead li { margin: 6px 0; }
     .hidden { display:none; }
+    /* Kahoot-style circular countdown */
+    .timer { --pct: 100%; --c: #06d6a0; width: 128px; height: 128px; border-radius: 50%;
+      display: grid; place-items: center; margin: 8px auto 16px; position: relative;
+      background: conic-gradient(var(--c) var(--pct), #16213e 0); }
+    .timer::before { content: ''; position: absolute; inset: 10px; border-radius: 50%; background: #1a1a2e; }
+    .timer span { position: relative; font-size: 54px; font-weight: 800; line-height: 1; color: #fff;
+      font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+    .timer.urgent { animation: cd-pulse .5s ease-in-out infinite; }
+    .timer.urgent span { color: #ef476f; }
+    @keyframes cd-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
   </style>
 </head>
 <body>
@@ -33,6 +43,7 @@
 
     <div id="game" class="hidden">
       <p id="progress"></p>
+      <div class="timer" id="timer"><span id="timerNum">0</span></div>
       <div class="photo-box">
         <img id="photo" alt="" />
         <div class="grid" id="grid"></div>
