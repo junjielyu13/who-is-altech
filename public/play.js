@@ -83,6 +83,13 @@ socket.on('round:end', () => {
   if (statusKey !== 'status_correct') setStatus('status_round_end')
 })
 
+socket.on('game:reset', () => {
+  myScore = 0
+  $('score').textContent = '0'
+  canSubmit = false
+  setStatus(null)
+})
+
 applyI18n()
 mountLangSwitch()
 document.addEventListener('i18n:change', () => { if (joined) renderGreeting(); renderStatus($('status').className) })

@@ -97,6 +97,14 @@ export class GameState {
     this._beginRound()
   }
 
+  restart() {
+    this.phase = 'LOBBY'
+    this.currentIndex = -1
+    this.revealedCount = 0
+    this.submissions = new Map()
+    for (const p of this.players.values()) p.totalScore = 0
+  }
+
   leaderboard() {
     return [...this.players.values()]
       .map((p) => ({ id: p.id, nickname: p.nickname, totalScore: p.totalScore }))

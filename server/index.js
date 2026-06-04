@@ -137,7 +137,12 @@ io.on('connection', (socket) => {
   socket.on('player:submit', ({ guess }) => {
     const result = game.submitGuess(socket.data.playerId, guess)
     socket.emit('player:result', result)
-    io.emit('round:answered', { answeredCount: game.answeredCount() })
+    // Only broadcast when a fresh submission was recorded (not a duplicate/rejected attempt).
+    // Include the nickname so the host can show who has locked in (without revealing correctness).
+    if (result && typeof result.correct === 'boolean') {
+      const p = game.players.get(socket.data.playerId)
+      io.emit('round:answered', { answeredCount: game.answeredCount(), nickname: p ? p.nickname : '?' })
+    }
   })
 
   socket.on('host:hello', async () => {
@@ -172,6 +177,14 @@ io.on('connection', (socket) => {
   })
 
   socket.on('host:skip', () => finishRound())
+
+  socket.on('host:restart', async () => {
+    stopReveal()
+    game.restart()
+    game.loadQuiz(await store.load())
+    io.emit('game:reset')
+    io.emit('lobby:update', { players: game.leaderboard() })
+  })
 
   socket.on('host:next', () => {
     if (game.phase !== 'ROUND_RESULT' && game.phase !== 'GAME_OVER') return

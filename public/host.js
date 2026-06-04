@@ -44,9 +44,35 @@ function renderPlayers(players) {
   const c = $('players'); c.innerHTML = ''
   for (const p of players) { const s = document.createElement('span'); s.textContent = p.nickname; c.appendChild(s) }
 }
+// Render a leaderboard with a FLIP animation so rows slide to their new rank when scores change.
+// Items are keyed by player id and reused across renders; the element must be visible to animate.
 function renderBoard(elId, board) {
-  const c = $(elId); c.innerHTML = ''
-  for (const p of board) { const li = document.createElement('li'); li.textContent = `${p.nickname} — ${p.totalScore}`; c.appendChild(li) }
+  const c = $(elId)
+  const oldTop = new Map()
+  for (const li of c.children) oldTop.set(li.dataset.pid, li.getBoundingClientRect().top)
+
+  const existing = new Map([...c.children].map((li) => [li.dataset.pid, li]))
+  for (const p of board) {
+    let li = existing.get(p.id)
+    if (!li) { li = document.createElement('li'); li.dataset.pid = p.id }
+    li.textContent = `${p.nickname} — ${p.totalScore}`
+    c.appendChild(li) // appending an existing node moves it into the new order
+  }
+  const keep = new Set(board.map((p) => p.id))
+  for (const [pid, li] of existing) if (!keep.has(pid)) li.remove()
+
+  for (const li of c.children) {
+    const prev = oldTop.get(li.dataset.pid)
+    if (prev == null) continue
+    const dy = prev - li.getBoundingClientRect().top
+    if (!dy) continue
+    li.style.transition = 'none'
+    li.style.transform = `translateY(${dy}px)`
+    requestAnimationFrame(() => {
+      li.style.transition = 'transform .5s cubic-bezier(.2,.8,.2,1)'
+      li.style.transform = ''
+    })
+  }
 }
 function renderProgress() {
   $('progress').textContent = t('round_progress', prog)
@@ -58,10 +84,19 @@ function renderResults() {
   }
 }
 
+function addAnsweredChip(nickname) {
+  if (!nickname) return
+  const chip = document.createElement('span')
+  chip.className = 'chip'
+  chip.textContent = nickname
+  $('answeredList').appendChild(chip)
+}
+
 function buildRound({ index, total, photoUrl, grid, revealOrder: order }) {
   revealOrder = order
   prog = { i: index + 1, n: total, a: 0 }
   renderProgress()
+  $('answeredList').innerHTML = '' // clear who-answered chips for the new round
   $('photo').src = photoUrl
   const g = $('grid')
   g.style.gridTemplateColumns = `repeat(${grid.cols}, 1fr)`
@@ -81,8 +116,11 @@ socket.on('lobby:update', ({ players }) => { renderPlayers(players) })
 $('startBtn').onclick = () => socket.emit('host:start')
 $('skipBtn').onclick = () => socket.emit('host:skip')
 $('nextBtn').onclick = () => socket.emit('host:next')
+$('restartBtn').onclick = () => socket.emit('host:restart')
 
 socket.on('host:error', ({ code }) => { $('lobbyMsg').textContent = t('error_' + (code || 'generic')) })
+
+socket.on('game:reset', () => { $('lobbyMsg').textContent = ''; show('lobby') })
 
 socket.on('round:start', (data) => {
   buildRound(data)
@@ -91,15 +129,18 @@ socket.on('round:start', (data) => {
 })
 socket.on('round:reveal', ({ revealedCount }) => applyReveal(revealedCount))
 
-socket.on('round:answered', ({ answeredCount }) => { prog.a = answeredCount; renderProgress() })
+socket.on('round:answered', ({ answeredCount, nickname }) => {
+  prog.a = answeredCount; renderProgress()
+  addAnsweredChip(nickname)
+})
 
 socket.on('round:end', ({ answer, results, leaderboard }) => {
   stopCountdown()
   $('answer').textContent = answer
   lastResults = results
   renderResults()
-  renderBoard('leaderboard', leaderboard)
-  show('result')
+  show('result')                       // reveal first so the board is visible…
+  renderBoard('leaderboard', leaderboard) // …then animate rank changes
 })
 
 socket.on('game:over', ({ leaderboard }) => {
@@ -116,8 +157,8 @@ socket.on('state:full', ({ phase, players, round }) => {
     startCountdown(Math.max(0, tiles - round.revealedCount) * round.intervalMs)
     show('game')
   }
-  else if (phase === 'ROUND_RESULT' && round) { buildRound(round); applyReveal(round.revealedCount); $('answer').textContent = round.answer; renderBoard('leaderboard', round.leaderboard); show('result') }
-  else if (phase === 'GAME_OVER') { renderBoard('finalBoard', players); show('over') }
+  else if (phase === 'ROUND_RESULT' && round) { buildRound(round); applyReveal(round.revealedCount); $('answer').textContent = round.answer; show('result'); renderBoard('leaderboard', round.leaderboard) }
+  else if (phase === 'GAME_OVER') { show('over'); renderBoard('finalBoard', players) }
 })
 
 applyI18n()

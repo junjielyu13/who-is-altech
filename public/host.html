@@ -27,6 +27,14 @@
     .timer.urgent { animation: cd-pulse .5s ease-in-out infinite; }
     .timer.urgent span { color: #ef476f; }
     @keyframes cd-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+    /* "who answered" chips — pop in as each player locks in their guess */
+    .answered { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; min-height: 34px; margin: 4px auto 4px; }
+    .answered .chip { background: #06d6a0; color: #04282a; font-weight: 700; padding: 6px 14px; border-radius: 20px;
+      animation: chip-pop .35s cubic-bezier(.2,1.4,.4,1); }
+    .answered .chip::before { content: '✓ '; }
+    @keyframes chip-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    /* leaderboard rank-change animation uses FLIP transforms set from JS */
+    .lead li { will-change: transform; }
   </style>
 </head>
 <body>
@@ -43,6 +51,7 @@
 
     <div id="game" class="hidden">
       <p id="progress"></p>
+      <div class="answered" id="answeredList"></div>
       <div class="timer" id="timer"><span id="timerNum">0</span></div>
       <div class="photo-box">
         <img id="photo" alt="" />
@@ -61,6 +70,7 @@
     <div id="over" class="hidden">
       <h2 data-i18n="final_ranking">🏆 Clasificación final</h2>
       <ol class="lead" id="finalBoard"></ol>
+      <button id="restartBtn" data-i18n="btn_restart">Jugar de nuevo</button>
     </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
