@@ -2,7 +2,8 @@ import { promises as fs } from 'node:fs'
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i
 export const DEFAULT_GRID = { rows: 4, cols: 4 }
-export const DEFAULT_INTERVAL = 3000
+// 16 tiles × 1250ms ≈ a 20-second round.
+export const DEFAULT_INTERVAL = 1250
 
 // Build the quiz by scanning an uploads directory. Each image file becomes a question whose
 // answer is the file name without its extension (e.g. "junjie.jpeg" → answer "junjie").

@@ -27,11 +27,13 @@ test('答案保留空格和中文', async () => {
   assert.ok(answers.includes('李娟'))
 })
 
-test('默认网格 4×4、间隔 3000ms', async () => {
+test('默认网格 4×4、间隔 1250ms（约 20 秒一轮）', async () => {
   const dir = await tmpDirWith(['x.jpg'])
   const quiz = await buildQuiz(dir)
   assert.deepEqual(quiz.questions[0].grid, { rows: 4, cols: 4 })
-  assert.equal(quiz.questions[0].intervalMs, 3000)
+  assert.equal(quiz.questions[0].intervalMs, 1250)
+  // 16 tiles × 1250ms = 20s
+  assert.equal(quiz.questions[0].grid.rows * quiz.questions[0].grid.cols * quiz.questions[0].intervalMs, 20000)
 })
 
 test('可覆盖网格与间隔', async () => {

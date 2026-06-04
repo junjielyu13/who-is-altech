@@ -51,11 +51,11 @@ async function currentAnswer() {
 }
 
 try {
-// ---- Round 1 (first photo) ----
+// ---- Round 1 (random photo) ----
 await host.page.click('#startBtn')
 log('host started — 3-2-1 countdown for everyone')
 await sleep(4500) // let the 3-2-1 intro finish and round 1 begin
-log('round 1 — tiles revealing, countdown running')
+log('round 1 — tiles revealing, 20s countdown (watch the bar on the phones too)')
 const ans1 = await currentAnswer()
 await guess(phones[0], ans1)        // Ana — early, correct
 log('Ana locked in (early)')
@@ -63,16 +63,13 @@ await sleep(3000)
 await guess(phones[1], ans1)        // Bo — correct
 log('Bo locked in')
 await sleep(2500)
-await guess(phones[2], 'no lo sé')  // Cris — wrong
-log('Cris locked in (wrong)')
-await sleep(2000)
-await host.page.click('#skipBtn')   // end round → result + rank animation
-log('round 1 ended — result screen + leaderboard')
-await sleep(5000)
+await guess(phones[2], 'no lo sé')  // Cris — wrong → all answered, round ends automatically
+log('Cris locked in (wrong) — everyone answered → round ends on its own')
+log('round 1 result — medals + growing score bars; auto-advances in 5s')
+await sleep(6000)
 
-// ---- Round 2 (second photo) ----
-await host.page.click('#nextBtn')
-log('round 2 started')
+// ---- Round 2 (auto-started after the 5s) ----
+log('round 2 started automatically')
 await sleep(3000)
 const ans2 = await currentAnswer()
 await guess(phones[2], ans2)        // Cris — early, correct (climbs the ranking)
@@ -81,14 +78,11 @@ await sleep(3000)
 await guess(phones[0], ans2)        // Ana — later, correct
 log('Ana locked in (later)')
 await sleep(2000)
-await guess(phones[1], '???')       // Bo — wrong
-await sleep(1500)
-await host.page.click('#skipBtn')
-log('round 2 ended — watch ranks slide')
-await sleep(5000)
+await guess(phones[1], '???')       // Bo — wrong → all answered, round ends
+log('Bo wrong — everyone answered → round ends; watch the ranks slide')
+await sleep(6000)
 
-// ---- Game over ----
-await host.page.click('#nextBtn')
+// ---- Game over (auto-advanced) ----
 log('game over — final ranking')
 await sleep(5000)
 

@@ -23,7 +23,33 @@ function showView(name) {
 }
 function renderWaitPlayers(players) {
   const c = $('waitPlayers'); c.innerHTML = ''
-  for (const p of players) { const s = document.createElement('span'); s.textContent = p.nickname; c.appendChild(s) }
+  for (const p of players) {
+    const s = document.createElement('span'); s.textContent = p.nickname
+    if (p.connected === false) s.classList.add('off')
+    c.appendChild(s)
+  }
+}
+
+// Round timer bar: depletes over the round and turns red in the last 5s. Frozen on round close.
+let barTimer = null
+function startBar(totalMs) {
+  stopBar()
+  const bar = $('timebar')
+  bar.classList.remove('urgent')
+  bar.style.transition = 'none'
+  bar.style.width = '100%'
+  void bar.offsetWidth
+  requestAnimationFrame(() => {
+    bar.style.transition = `width ${totalMs}ms linear`
+    bar.style.width = '0%'
+  })
+  if (totalMs > 5000) barTimer = setTimeout(() => $('timebar').classList.add('urgent'), totalMs - 5000)
+}
+function stopBar() {
+  if (barTimer) { clearTimeout(barTimer); barTimer = null }
+  const bar = $('timebar')
+  bar.style.transition = 'none'
+  bar.style.width = getComputedStyle(bar).width // freeze where it is
 }
 function renderGreeting() {
   $('greeting').textContent = t('greeting', { name: localStorage.getItem('wis_nick') || '' })
@@ -61,6 +87,8 @@ function doJoin(nick) {
 }
 
 $('joinBtn').onclick = () => doJoin($('nickname').value.trim() || t('default_nick'))
+// Enter key submits the guess, the natural action on a phone keyboard.
+$('guess').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('submitBtn').click() })
 
 socket.on('connect', () => {
   // 断线重连后，如果之前已经加入过，用保存的昵称自动重新加入
@@ -82,7 +110,7 @@ socket.on('lobby:update', ({ players }) => { renderWaitPlayers(players) })
 // host pressed start: everyone counts down together, then round:start arrives
 socket.on('game:countdown', ({ from }) => { runCountdown(from || 3) })
 
-socket.on('round:start', () => {
+socket.on('round:start', (data) => {
   hideCountdown()
   canSubmit = true
   pendingResult = null
@@ -91,6 +119,7 @@ socket.on('round:start', () => {
   $('submitBtn').disabled = false
   setStatus(null)
   showView('playView')
+  startBar(data.grid.rows * data.grid.cols * data.intervalMs)
 })
 
 $('submitBtn').onclick = () => {
@@ -113,6 +142,7 @@ socket.on('player:result', (r) => {
 })
 
 socket.on('round:end', () => {
+  stopBar()
   // round closed → now it's safe to reveal this player's outcome and update their total
   if (pendingResult && pendingResult.correct) {
     setStatus('status_correct', { score: pendingResult.score }, 'status ok')
@@ -133,6 +163,7 @@ socket.on('game:reset', () => {
   pendingResult = null
   setStatus(null)
   hideCountdown()
+  stopBar()
   if (joined) showView('waitView') // back to the sala de espera for the next game
 })
 

@@ -11,6 +11,11 @@
     .ok { color: #06d6a0; }
     .bad { color: #ef476f; }
     .hidden { display: none; }
+    /* round timer bar — mirrors the big-screen countdown so players feel the clock */
+    .timebar-track { height: 10px; background: #16213e; border-radius: 6px; overflow: hidden; margin: 4px 0 16px; }
+    #timebar { height: 100%; width: 100%; background: #06d6a0; border-radius: 6px; }
+    #timebar.urgent { background: #ef476f; }
+    .wait-players span.off { opacity: .4; filter: grayscale(1); }
   </style>
 </head>
 <body>
@@ -30,6 +35,7 @@
 
     <div id="playView" class="hidden">
       <p id="greeting"></p>
+      <div class="timebar-track"><div id="timebar"></div></div>
       <input type="text" id="guess" class="big" data-i18n-ph="ph_guess" placeholder="" />
       <button id="submitBtn" class="big" style="margin-top:12px" data-i18n="btn_submit">Enviar respuesta</button>
       <div class="status" id="status"></div>

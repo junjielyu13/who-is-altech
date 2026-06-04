@@ -86,6 +86,65 @@ test('nextRound 进入下一题，最后一题后 GAME_OVER', () => {
   assert.equal(g.phase, 'GAME_OVER')
 })
 
+test('everyoneAnswered：所有在线玩家答完才为真，离线玩家不计', () => {
+  const g = new GameState()
+  g.loadQuiz(makeQuiz())
+  g.addPlayer('p1', 'Alice')
+  g.addPlayer('p2', 'Bob')
+  g.startGame()
+  assert.equal(g.everyoneAnswered(), false)
+  g.submitGuess('p1', 'marie curie')
+  assert.equal(g.everyoneAnswered(), false) // p2 还没答
+  g.submitGuess('p2', 'nope')
+  assert.equal(g.everyoneAnswered(), true)  // 两人都答了
+})
+
+test('everyoneAnswered：离线玩家不阻塞本轮结束', () => {
+  const g = new GameState()
+  g.loadQuiz(makeQuiz())
+  g.addPlayer('p1', 'Alice')
+  g.addPlayer('p2', 'Bob')
+  g.startGame()
+  g.markDisconnected('p2')             // p2 掉线
+  g.submitGuess('p1', 'marie curie')   // 仅剩的在线玩家答了
+  assert.equal(g.everyoneAnswered(), true)
+})
+
+test('everyoneAnswered：无人在线时为假，避免瞬间结束', () => {
+  const g = new GameState()
+  g.loadQuiz(makeQuiz())
+  g.addPlayer('p1', 'Alice')
+  g.startGame()
+  g.markDisconnected('p1')
+  assert.equal(g.everyoneAnswered(), false)
+})
+
+test('shuffleQuestions：用可控随机数重排题目顺序', () => {
+  const g = new GameState()
+  g.loadQuiz({ questions: ['a', 'b', 'c', 'd'].map((x) => ({ id: x, answer: x })) })
+  // 一个确定性的 rng，使顺序明显改变
+  const seq = [0.99, 0.0, 0.99]
+  let i = 0
+  g.shuffleQuestions(() => seq[i++])
+  const order = g.quiz.questions.map((q) => q.id)
+  assert.equal(order.length, 4)
+  assert.deepEqual([...order].sort(), ['a', 'b', 'c', 'd']) // 仍是同一组题
+  assert.notDeepEqual(order, ['a', 'b', 'c', 'd'])          // 但顺序变了
+})
+
+test('leaderboard 包含 connected 状态', () => {
+  const g = new GameState()
+  g.loadQuiz(makeQuiz())
+  g.addPlayer('p1', 'Alice')
+  g.addPlayer('p2', 'Bob')
+  g.markDisconnected('p2')
+  const board = g.leaderboard()
+  const bob = board.find((p) => p.nickname === 'Bob')
+  const alice = board.find((p) => p.nickname === 'Alice')
+  assert.equal(alice.connected, true)
+  assert.equal(bob.connected, false)
+})
+
 test('当前题的答案集合包含正确答案与别名', () => {
   const g = new GameState()
   g.loadQuiz(makeQuiz())

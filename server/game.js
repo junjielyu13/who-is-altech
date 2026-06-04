@@ -80,6 +80,24 @@ export class GameState {
     return this.submissions.size
   }
 
+  // True once every still-connected player has locked in a guess — used to end the round early
+  // instead of waiting for all tiles to reveal. False if nobody is connected (avoids instant end).
+  everyoneAnswered() {
+    const connected = [...this.players.values()].filter((p) => p.connected)
+    if (connected.length === 0) return false
+    return connected.every((p) => this.submissions.has(p.id))
+  }
+
+  // Shuffle the question order in place (Fisher–Yates) so photos don't appear in upload order.
+  // rng is injectable for deterministic tests.
+  shuffleQuestions(rng = Math.random) {
+    const q = this.quiz.questions
+    for (let i = q.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1))
+      ;[q[i], q[j]] = [q[j], q[i]]
+    }
+  }
+
   endRound() {
     this.phase = 'ROUND_RESULT'
     for (const [id, sub] of this.submissions) {
@@ -107,7 +125,7 @@ export class GameState {
 
   leaderboard() {
     return [...this.players.values()]
-      .map((p) => ({ id: p.id, nickname: p.nickname, totalScore: p.totalScore }))
+      .map((p) => ({ id: p.id, nickname: p.nickname, totalScore: p.totalScore, connected: p.connected }))
       .sort((a, b) => b.totalScore - a.totalScore)
   }
 }

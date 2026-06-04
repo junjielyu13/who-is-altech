@@ -28,18 +28,23 @@ LAN IP. (Testing solo on one machine? Just open `/play` in another tab.)
 
 1. **Add photos** — drop image files straight into the `uploads/` folder, or upload them on
    **/admin**. **The file name is the answer**: `junjie.jpeg` → answer "junjie", `Marie Curie.png`
-   → "Marie Curie". Every photo uses a 4×4 grid revealing one tile every 3 s.
+   → "Marie Curie". Every photo uses a 4×4 grid revealing one tile every 1.25 s (≈ a 20-second
+   round). Photos are shown in **random order** each game, not upload order.
 2. **/host** — players scan the QR and land in a **waiting room (sala de espera)** where everyone
    sees who has joined. Press **Start**.
 3. A synchronized **3 · 2 · 1** plays on the big screen and every phone, then round 1 begins.
-4. The photo reveals tile by tile while a **Kahoot-style countdown ring** runs. As each player locks
-   in an answer, a ✓ chip with their name pops up on the big screen — **without revealing if they're
-   right**. Players do **not** see their score yet (suspense!).
-5. The round ends when all tiles are revealed or the host hits **Skip**. The answer, who got it, and
-   the **leaderboard (with a rank-change slide animation)** appear on the big screen — and each phone
-   now reveals its own result and updated total.
-6. **Next** moves to the next photo. After the last one, the **final ranking** shows with a
-   **Play again** button that resets scores and returns everyone to the waiting room.
+4. The photo reveals tile by tile while a **Kahoot-style countdown ring** runs on the big screen and a
+   matching **timer bar** depletes on every phone. As each player locks in an answer, a ✓ chip with
+   their name pops up on the big screen — **without revealing if they're right**. Players do **not**
+   see their score yet (suspense!). Pressing **Enter** on the phone submits.
+5. The round ends when all tiles are revealed, **as soon as every connected player has answered**, or
+   when the host hits **Skip**. The answer and the **leaderboard — a playful podium with medals,
+   growing score bars, counting-up totals and a rank-change slide** — appear on the big screen, and
+   each phone reveals its own result and updated total.
+6. The result screen **auto-advances after 5 s** (the **Next** button still works to skip ahead).
+   After the last photo, the **final ranking** shows with a **Play again** button that resets scores
+   and returns everyone to the waiting room. Players whose phone dropped are **greyed out** but keep
+   their score.
 
 ## Scoring
 

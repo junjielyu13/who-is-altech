@@ -67,38 +67,49 @@ async function main() {
     check('host shows the round countdown timer', await host.isVisible('#timer'))
     check('phone shows the guess box', await phones[0].isVisible('#guess'))
 
-    // guesses: Ana (correct, lowercased to also exercise fuzzy match), Bo (correct), Cris (wrong)
+    check('phone shows the round timer bar', await phones[0].isVisible('#timebar'))
+
+    // ---- Round 1: Ana answers via ENTER (lowercased → also exercises fuzzy match) ----
     const ans1 = await currentAnswer(host)
-    await phones[0].fill('#guess', ans1.toLowerCase()); await phones[0].click('#submitBtn')
+    await phones[0].fill('#guess', ans1.toLowerCase())
+    await phones[0].press('#guess', 'Enter')
     await phones[0].waitForSelector('#submitBtn[disabled]', { timeout: 4000 })
+    check('Enter key submits the guess on the phone', await phones[0].isDisabled('#submitBtn'))
     // the phone must NOT reveal correctness/score at submit time — only after the round
     check('phone does not reveal score at submit time', !(await phones[0].textContent('#status')).includes('+'))
     check('phone does not show success styling at submit time', !(await phones[0].locator('#status.ok').count()))
     await phones[1].fill('#guess', ans1); await phones[1].click('#submitBtn')
     await phones[2].fill('#guess', 'no idea'); await phones[2].click('#submitBtn')
-    await sleep(500)
-    check('host shows a ✓ chip for each of the 3 who answered', (await host.locator('#answeredList .chip').count()) === 3)
 
-    // end round → result screen + leaderboard
-    await host.click('#skipBtn')
+    // every connected player has answered → the round ends on its own, no host:skip needed
     await host.waitForSelector('#result:not(.hidden)', { timeout: 4000 })
-    check('result screen shows the answer', (await host.textContent('#answer')).includes(ans1))
-    check('round results list the correct guessers', (await host.locator('#roundResults li').count()) === 2)
+    check('round auto-ends once every connected player has answered', await host.isVisible('#result'))
+    check('big screen shows the answer', (await host.textContent('#answer')).includes(ans1))
+    check('the per-player "+score" list was removed', (await host.locator('#roundResults').count()) === 0)
     check('leaderboard is populated', (await host.locator('#leaderboard li').count()) === 3)
+    check('leaderboard shows a medal/rank badge', (await host.textContent('#leaderboard li:first-child .rank')).trim().length > 0)
     // now the phone reveals its own outcome + updated total
     await phones[0].waitForSelector('#status.ok', { timeout: 4000 })
     check('phone reveals success + score after the round closes', (await phones[0].textContent('#status')).includes('+'))
     check('phone total score updates after the round', (await phones[0].textContent('#score')) !== '0')
 
-    // round 2 then game over
-    await host.click('#nextBtn')
-    await host.waitForSelector('#game:not(.hidden)', { timeout: 4000 })
-    await phones[2].waitForSelector('#playView:not(.hidden)', { timeout: 4000 })
+    // ---- Result screen auto-advances after ~5s → round 2 starts on its own ----
+    await host.waitForSelector('#game:not(.hidden)', { timeout: 8000 })
+    check('result screen auto-advances to the next round', await host.isVisible('#game'))
+    await phones[1].waitForSelector('#playView:not(.hidden)', { timeout: 4000 })
+
+    // ---- Round 2: Cris drops out; only Ana answers, so the host ends it manually with Skip ----
+    await phones[2].context().close()
+    await sleep(700)
     const ans2 = await currentAnswer(host)
-    await phones[2].fill('#guess', ans2); await phones[2].click('#submitBtn')
+    await phones[0].fill('#guess', ans2); await phones[0].click('#submitBtn') // Bo stays silent
     await sleep(400)
     await host.click('#skipBtn')
     await host.waitForSelector('#result:not(.hidden)', { timeout: 4000 })
+    check('host Skip ends the round when not everyone has answered', await host.isVisible('#result'))
+    check('disconnected player is greyed out on the leaderboard', (await host.locator('#leaderboard li.off').count()) === 1)
+
+    // manual "Siguiente" still works (cancels the auto-timer); only 2 photos → game over
     await host.click('#nextBtn')
     await host.waitForSelector('#over:not(.hidden)', { timeout: 4000 })
     check('game over shows the final ranking', (await host.locator('#finalBoard li').count()) === 3)

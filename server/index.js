@@ -98,10 +98,12 @@ function startRoundBroadcast() {
     ;[order[i], order[j]] = [order[j], order[i]]
   }
   currentRevealOrder = order
+  const next = game.quiz.questions[game.currentIndex + 1]
   io.emit('round:start', {
     index: game.currentIndex,
     total: game.quiz.questions.length,
     photoUrl: `/uploads/${q.photoFile}`,
+    nextPhotoUrl: next ? `/uploads/${next.photoFile}` : null, // big screen preloads it
     grid: q.grid,
     revealOrder: order,
     intervalMs: q.intervalMs,
@@ -149,6 +151,8 @@ io.on('connection', (socket) => {
     if (result && typeof result.correct === 'boolean') {
       const p = game.players.get(socket.data.playerId)
       io.emit('round:answered', { answeredCount: game.answeredCount(), nickname: p ? p.nickname : '?' })
+      // Everyone still connected has answered → end the round now instead of waiting out the tiles.
+      if (game.everyoneAnswered()) finishRound()
     }
   })
 
@@ -179,6 +183,7 @@ io.on('connection', (socket) => {
       socket.emit('host:error', { code: 'empty_quiz' })
       return
     }
+    game.shuffleQuestions() // photos appear in random order, not upload order
     // 3-2-1 intro: tell everyone to count down together, then start the first round in sync.
     countingDown = true
     io.emit('game:countdown', { from: 3 })

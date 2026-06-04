@@ -6,8 +6,8 @@ const { t, applyI18n, mountLangSwitch } = I18N
 
 let revealOrder = []
 let prog = { i: 0, n: 0, a: 0 }      // current round progress, for re-render on lang change
-let lastResults = []                 // last round's per-player results
 let cdInterval = null                // countdown timer handle
+let nextTimer = null                 // auto-advance timer on the result screen
 
 // Kahoot-style countdown: counts down `totalMs` to 0, ring depletes, turns red + pulses in the last 5s.
 function startCountdown(totalMs) {
@@ -51,6 +51,12 @@ function runIntro(from) {
   introTimers.push(setTimeout(hideIntro, from * 1000 + 1500))
 }
 
+// Result screen auto-advances after 5s; the "Siguiente" button still works and cancels the timer.
+function scheduleAutoNext() { clearAutoNext(); nextTimer = setTimeout(() => socket.emit('host:next'), 5000) }
+function clearAutoNext() { if (nextTimer) { clearTimeout(nextTimer); nextTimer = null } }
+// Preload a photo so the next round's tiles reveal instantly, with no load flash.
+function preload(url) { if (url) { const img = new Image(); img.src = url } }
+
 // 加载二维码
 fetch('/api/qrcode').then((r) => r.json()).then(({ url, dataUrl }) => {
   $('qr').innerHTML = `<img src="${dataUrl}" alt="qr" />`
@@ -61,22 +67,51 @@ socket.emit('host:hello')
 
 function renderPlayers(players) {
   const c = $('players'); c.innerHTML = ''
-  for (const p of players) { const s = document.createElement('span'); s.textContent = p.nickname; c.appendChild(s) }
+  for (const p of players) {
+    const s = document.createElement('span'); s.textContent = p.nickname
+    if (p.connected === false) s.classList.add('off')
+    c.appendChild(s)
+  }
 }
-// Render a leaderboard with a FLIP animation so rows slide to their new rank when scores change.
-// Items are keyed by player id and reused across renders; the element must be visible to animate.
+
+// Animate a number from its last value up to `to` (ease-out cubic), so scores tick up on reveal.
+function countUp(el, to) {
+  const from = Number(el.dataset.v || 0)
+  el.dataset.v = to
+  if (from === to) { el.textContent = to; return }
+  const start = performance.now(), dur = 900
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / dur)
+    el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)))
+    if (k < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+// Render a playful leaderboard: medal/rank, name, a score bar that grows, and a counting-up number.
+// Rows are keyed by player id and reused across renders, sliding to their new rank via FLIP.
+const MEDALS = ['🥇', '🥈', '🥉']
 function renderBoard(elId, board) {
   const c = $(elId)
   const oldTop = new Map()
   for (const li of c.children) oldTop.set(li.dataset.pid, li.getBoundingClientRect().top)
 
   const existing = new Map([...c.children].map((li) => [li.dataset.pid, li]))
-  for (const p of board) {
+  const max = Math.max(1, ...board.map((p) => p.totalScore))
+  board.forEach((p, idx) => {
     let li = existing.get(p.id)
-    if (!li) { li = document.createElement('li'); li.dataset.pid = p.id }
-    li.textContent = `${p.nickname} — ${p.totalScore}`
+    if (!li) {
+      li = document.createElement('li'); li.dataset.pid = p.id
+      li.innerHTML = '<span class="rank"></span><span class="pname"></span><span class="bar-wrap"><span class="bar"></span></span><span class="pscore">0</span>'
+    }
+    li.classList.toggle('leader', idx === 0 && p.totalScore > 0)
+    li.classList.toggle('off', p.connected === false)
+    li.querySelector('.rank').textContent = MEDALS[idx] || idx + 1
+    li.querySelector('.pname').textContent = p.nickname
+    li.querySelector('.bar').style.width = (p.totalScore / max) * 100 + '%'
+    countUp(li.querySelector('.pscore'), p.totalScore)
     c.appendChild(li) // appending an existing node moves it into the new order
-  }
+  })
   const keep = new Set(board.map((p) => p.id))
   for (const [pid, li] of existing) if (!keep.has(pid)) li.remove()
 
@@ -86,7 +121,7 @@ function renderBoard(elId, board) {
     if (prev == null) continue
     const dy = prev - li.getBoundingClientRect().top
     if (!dy) continue
-    const delay = moved++ * 120                 // stagger so rows slide one after another
+    const delay = moved++ * 140                 // stagger so rows slide one after another
     li.style.transition = 'none'
     li.style.transform = `translateY(${dy}px)`
     requestAnimationFrame(() => {
@@ -94,7 +129,7 @@ function renderBoard(elId, board) {
       li.style.transition = `transform 1.1s cubic-bezier(.34,1.56,.64,1) ${delay}ms`
       li.style.transform = ''
     })
-    if (dy > 0) {                               // this row climbed — flash it gold as it arrives
+    if (dy > 0) {                               // this row climbed — flash it as it arrives
       li.classList.remove('bumped'); void li.offsetWidth
       setTimeout(() => li.classList.add('bumped'), delay + 200)
     }
@@ -102,12 +137,6 @@ function renderBoard(elId, board) {
 }
 function renderProgress() {
   $('progress').textContent = t('round_progress', prog)
-}
-function renderResults() {
-  const rr = $('roundResults'); rr.innerHTML = ''
-  for (const r of lastResults.filter((x) => x.correct).sort((a, b) => b.score - a.score)) {
-    const li = document.createElement('li'); li.textContent = t('round_result', { name: r.nickname, score: r.score }); rr.appendChild(li)
-  }
 }
 
 function addAnsweredChip(nickname) {
@@ -141,18 +170,20 @@ socket.on('lobby:update', ({ players }) => { renderPlayers(players) })
 
 $('startBtn').onclick = () => socket.emit('host:start')
 $('skipBtn').onclick = () => socket.emit('host:skip')
-$('nextBtn').onclick = () => socket.emit('host:next')
+$('nextBtn').onclick = () => { clearAutoNext(); socket.emit('host:next') }
 $('restartBtn').onclick = () => socket.emit('host:restart')
 
 socket.on('host:error', ({ code }) => { $('lobbyMsg').textContent = t('error_' + (code || 'generic')) })
 
-socket.on('game:reset', () => { $('lobbyMsg').textContent = ''; hideIntro(); show('lobby') })
+socket.on('game:reset', () => { clearAutoNext(); $('lobbyMsg').textContent = ''; hideIntro(); show('lobby') })
 
 socket.on('game:countdown', ({ from }) => { runIntro(from || 3) })
 
 socket.on('round:start', (data) => {
   hideIntro()
+  clearAutoNext()
   buildRound(data)
+  preload(data.nextPhotoUrl)
   startCountdown(data.grid.rows * data.grid.cols * data.intervalMs)
   show('game')
 })
@@ -163,16 +194,16 @@ socket.on('round:answered', ({ answeredCount, nickname }) => {
   addAnsweredChip(nickname)
 })
 
-socket.on('round:end', ({ answer, results, leaderboard }) => {
+socket.on('round:end', ({ answer, leaderboard }) => {
   stopCountdown()
-  $('answer').textContent = answer
-  lastResults = results
-  renderResults()
-  show('result')                       // reveal first so the board is visible…
+  $('answer').textContent = answer       // the big screen tells everyone the answer
+  show('result')                         // reveal first so the board is visible…
   renderBoard('leaderboard', leaderboard) // …then animate rank changes
+  scheduleAutoNext()                     // auto-advance after 5s
 })
 
 socket.on('game:over', ({ leaderboard }) => {
+  clearAutoNext()
   renderBoard('finalBoard', leaderboard)
   show('over')
 })
@@ -192,4 +223,4 @@ socket.on('state:full', ({ phase, players, round }) => {
 
 applyI18n()
 mountLangSwitch()
-document.addEventListener('i18n:change', () => { renderProgress(); renderResults() })
+document.addEventListener('i18n:change', () => { renderProgress() })

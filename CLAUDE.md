@@ -53,10 +53,14 @@ Client → server: `player:join {nickname, clientId}`, `player:submit {guess}`, 
 `host:skip`, `host:next`, `host:restart`, `host:hello`.
 
 Server → clients: `player:joined`, `player:result`, `lobby:update {players}`,
-`game:countdown {from}`, `round:start {index,total,photoUrl,grid,revealOrder,intervalMs}`,
+`game:countdown {from}`,
+`round:start {index,total,photoUrl,nextPhotoUrl,grid,revealOrder,intervalMs}` (`nextPhotoUrl` lets the
+big screen preload the next photo so tiles reveal with no load flash),
 `round:reveal {revealedCount}`, `round:answered {answeredCount, nickname}`,
 `round:end {answer, results, leaderboard}`, `game:over {leaderboard}`, `game:reset`,
 `state:full {phase, players, round}` (host reconnect restore), `host:error {code}`.
+Every `leaderboard`/`players` entry carries `{id, nickname, totalScore, connected}` — the host dims
+`connected: false` rows.
 
 Key behaviors to preserve when editing:
 - **Players are keyed by a stable `clientId`** (persisted in the phone's localStorage), NOT the socket
@@ -66,6 +70,13 @@ Key behaviors to preserve when editing:
   `round:end` (and on the big-screen leaderboard). Don't leak the result at submit time.
 - **3-2-1 countdown** is server-timed: `host:start` broadcasts `game:countdown`, waits 3s, then starts
   the round, so all clients begin together.
+- **A round is ~20s** (16 tiles × 1250ms `DEFAULT_INTERVAL`) and ends early **as soon as every
+  *connected* player has answered** (`game.everyoneAnswered()` → `finishRound`). The answer is
+  revealed on the **big screen** (`#answer`), not the phones.
+- **Photo order is randomized per game** — `host:start` calls `game.shuffleQuestions()` once (not in
+  `buildQuiz`, which stays deterministic, so order is stable for the whole game).
+- **The result screen auto-advances after 5s** (host-side timer → `host:next`); the Next button still
+  works and cancels the timer.
 - **Localize via codes, not strings.** Server sends error/status *codes* (e.g. `empty_quiz`); the
   client translates with `t()`. Every UI string is a key in `i18n.js` — add new keys to **both** `es`
   and `zh` (they must stay at parity).
