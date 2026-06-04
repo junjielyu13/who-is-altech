@@ -7,6 +7,8 @@ let canSubmit = false
 let joined = false
 let statusKey = null      // current status message key, for re-render on lang change
 let statusVars = null
+let pendingResult = null  // this round's result, revealed only after the round closes
+let cdTimers = []         // pending 3-2-1 countdown ticks
 
 // 重连时恢复昵称
 const savedNick = localStorage.getItem('wis_nick')
@@ -15,6 +17,14 @@ if (savedNick) $('nickname').value = savedNick
 let clientId = localStorage.getItem('wis_id')
 if (!clientId) { clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('wis_id', clientId) }
 
+// joinView → waitView (sala de espera) → playView
+function showView(name) {
+  for (const v of ['joinView', 'waitView', 'playView']) $(v).classList.toggle('hidden', v !== name)
+}
+function renderWaitPlayers(players) {
+  const c = $('waitPlayers'); c.innerHTML = ''
+  for (const p of players) { const s = document.createElement('span'); s.textContent = p.nickname; c.appendChild(s) }
+}
 function renderGreeting() {
   $('greeting').textContent = t('greeting', { name: localStorage.getItem('wis_nick') || '' })
 }
@@ -25,6 +35,24 @@ function setStatus(key, vars, cls) {
 function renderStatus(cls) {
   $('status').textContent = statusKey ? t(statusKey, statusVars) : ''
   if (cls) $('status').className = cls
+}
+
+// synchronized 3-2-1 overlay; round:start clears it
+function hideCountdown() {
+  cdTimers.forEach(clearTimeout); cdTimers = []
+  $('countdown').classList.add('hidden')
+}
+function runCountdown(from) {
+  hideCountdown()
+  const num = $('countdownNum')
+  $('countdown').classList.remove('hidden')
+  for (let n = from; n >= 1; n--) {
+    cdTimers.push(setTimeout(() => {
+      num.textContent = n
+      num.classList.remove('tick'); void num.offsetWidth; num.classList.add('tick')
+    }, (from - n) * 1000))
+  }
+  cdTimers.push(setTimeout(hideCountdown, from * 1000 + 1500)) // safety, if round:start is missed
 }
 
 function doJoin(nick) {
@@ -45,16 +73,24 @@ socket.on('connect', () => {
 socket.on('player:joined', () => {
   joined = true
   renderGreeting()
-  $('joinView').classList.add('hidden')
-  $('playView').classList.remove('hidden')
+  showView('waitView')
 })
 
+// keep the waiting-room list fresh as others join/leave
+socket.on('lobby:update', ({ players }) => { renderWaitPlayers(players) })
+
+// host pressed start: everyone counts down together, then round:start arrives
+socket.on('game:countdown', ({ from }) => { runCountdown(from || 3) })
+
 socket.on('round:start', () => {
+  hideCountdown()
   canSubmit = true
+  pendingResult = null
   $('guess').value = ''
   $('guess').disabled = false
   $('submitBtn').disabled = false
   setStatus(null)
+  showView('playView')
 })
 
 $('submitBtn').onclick = () => {
@@ -67,27 +103,37 @@ $('submitBtn').onclick = () => {
 socket.on('player:result', (r) => {
   if (r.alreadySubmitted) { setStatus('status_already'); return }
   if (r.rejected) { setStatus('status_cannot'); return }
+  // Lock the answer in, but do NOT reveal correctness or score yet — that is suspense for
+  // after the round, shown on the big screen (and mirrored here on round:end).
   canSubmit = false
   $('guess').disabled = true
   $('submitBtn').disabled = true
-  if (r.correct) {
-    setStatus('status_correct', { score: r.score }, 'status ok')
-    myScore += r.score
-    $('score').textContent = myScore
-  } else {
-    setStatus('status_locked')
-  }
+  pendingResult = r
+  setStatus('status_locked')
 })
 
 socket.on('round:end', () => {
-  if (statusKey !== 'status_correct') setStatus('status_round_end')
+  // round closed → now it's safe to reveal this player's outcome and update their total
+  if (pendingResult && pendingResult.correct) {
+    setStatus('status_correct', { score: pendingResult.score }, 'status ok')
+    myScore += pendingResult.score
+    $('score').textContent = myScore
+  } else if (pendingResult) {
+    setStatus('status_wrong', null, 'status bad')
+  } else {
+    setStatus('status_round_end')
+  }
+  pendingResult = null
 })
 
 socket.on('game:reset', () => {
   myScore = 0
   $('score').textContent = '0'
   canSubmit = false
+  pendingResult = null
   setStatus(null)
+  hideCountdown()
+  if (joined) showView('waitView') // back to the sala de espera for the next game
 })
 
 applyI18n()

@@ -20,6 +20,7 @@ const io = new Server(server)
 const store = new QuizStore(process.env.QUIZ_PATH || path.join(ROOT, 'quiz.json'))
 const game = new GameState()
 let currentRevealOrder = []
+let countingDown = false // true during the 3-2-1 intro between host:start and the first round
 
 // 静态资源
 app.use(express.static(path.join(ROOT, 'public')))
@@ -166,14 +167,20 @@ io.on('connection', (socket) => {
   })
 
   socket.on('host:start', async () => {
+    if (game.phase !== 'LOBBY' || countingDown) return
     game.loadQuiz(await store.load())
-    try {
+    if (game.quiz.questions.length === 0) {
+      socket.emit('host:error', { code: 'empty_quiz' })
+      return
+    }
+    // 3-2-1 intro: tell everyone to count down together, then start the first round in sync.
+    countingDown = true
+    io.emit('game:countdown', { from: 3 })
+    setTimeout(() => {
+      countingDown = false
       game.startGame()
       startRoundBroadcast()
-    } catch (err) {
-      // startGame only throws when the quiz is empty; send a code so the client localizes it.
-      socket.emit('host:error', { code: 'empty_quiz' })
-    }
+    }, 3000)
   })
 
   socket.on('host:skip', () => finishRound())

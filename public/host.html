@@ -35,6 +35,12 @@
     @keyframes chip-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     /* leaderboard rank-change animation uses FLIP transforms set from JS */
     .lead li { will-change: transform; }
+    /* a celebratory flash on rows that climbed in rank */
+    .lead li.bumped { animation: rank-bump .9s ease; }
+    @keyframes rank-bump {
+      0%, 100% { color: #eee; text-shadow: none; }
+      35% { color: #ffd166; text-shadow: 0 0 18px rgba(255, 209, 102, .85); }
+    }
   </style>
 </head>
 <body>
@@ -73,6 +79,7 @@
       <button id="restartBtn" data-i18n="btn_restart">Jugar de nuevo</button>
     </div>
   </div>
+  <div class="countdown-overlay hidden" id="countdown"><b id="countdownNum"></b></div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/i18n.js"></script>
   <script src="/host.js"></script>

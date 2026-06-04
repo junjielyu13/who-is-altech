@@ -22,6 +22,12 @@
       <button id="joinBtn" class="big" style="margin-top:12px" data-i18n="btn_join">Unirse al juego</button>
     </div>
 
+    <div id="waitView" class="hidden">
+      <h2 data-i18n="wait_title">Sala de espera</h2>
+      <p data-i18n="wait_hint">Esperando a que el anfitrión empiece…</p>
+      <div class="wait-players" id="waitPlayers"></div>
+    </div>
+
     <div id="playView" class="hidden">
       <p id="greeting"></p>
       <input type="text" id="guess" class="big" data-i18n-ph="ph_guess" placeholder="" />
@@ -30,6 +36,7 @@
       <p><span data-i18n="total_score">Puntos totales:</span> <b id="score">0</b></p>
     </div>
   </div>
+  <div class="countdown-overlay hidden" id="countdown"><b id="countdownNum"></b></div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/i18n.js"></script>
   <script src="/play.js"></script>

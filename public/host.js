@@ -32,6 +32,25 @@ function stopCountdown() {
   $('timer').classList.remove('urgent')
 }
 
+// Synchronized 3-2-1 intro overlay shown on host:start before the first round.
+let introTimers = []
+function hideIntro() {
+  introTimers.forEach(clearTimeout); introTimers = []
+  $('countdown').classList.add('hidden')
+}
+function runIntro(from) {
+  hideIntro()
+  const num = $('countdownNum')
+  $('countdown').classList.remove('hidden')
+  for (let n = from; n >= 1; n--) {
+    introTimers.push(setTimeout(() => {
+      num.textContent = n
+      num.classList.remove('tick'); void num.offsetWidth; num.classList.add('tick')
+    }, (from - n) * 1000))
+  }
+  introTimers.push(setTimeout(hideIntro, from * 1000 + 1500))
+}
+
 // 加载二维码
 fetch('/api/qrcode').then((r) => r.json()).then(({ url, dataUrl }) => {
   $('qr').innerHTML = `<img src="${dataUrl}" alt="qr" />`
@@ -61,17 +80,24 @@ function renderBoard(elId, board) {
   const keep = new Set(board.map((p) => p.id))
   for (const [pid, li] of existing) if (!keep.has(pid)) li.remove()
 
+  let moved = 0
   for (const li of c.children) {
     const prev = oldTop.get(li.dataset.pid)
     if (prev == null) continue
     const dy = prev - li.getBoundingClientRect().top
     if (!dy) continue
+    const delay = moved++ * 120                 // stagger so rows slide one after another
     li.style.transition = 'none'
     li.style.transform = `translateY(${dy}px)`
     requestAnimationFrame(() => {
-      li.style.transition = 'transform .5s cubic-bezier(.2,.8,.2,1)'
+      // slower, with a springy overshoot so ranks settle with a little bounce
+      li.style.transition = `transform 1.1s cubic-bezier(.34,1.56,.64,1) ${delay}ms`
       li.style.transform = ''
     })
+    if (dy > 0) {                               // this row climbed — flash it gold as it arrives
+      li.classList.remove('bumped'); void li.offsetWidth
+      setTimeout(() => li.classList.add('bumped'), delay + 200)
+    }
   }
 }
 function renderProgress() {
@@ -120,9 +146,12 @@ $('restartBtn').onclick = () => socket.emit('host:restart')
 
 socket.on('host:error', ({ code }) => { $('lobbyMsg').textContent = t('error_' + (code || 'generic')) })
 
-socket.on('game:reset', () => { $('lobbyMsg').textContent = ''; show('lobby') })
+socket.on('game:reset', () => { $('lobbyMsg').textContent = ''; hideIntro(); show('lobby') })
+
+socket.on('game:countdown', ({ from }) => { runIntro(from || 3) })
 
 socket.on('round:start', (data) => {
+  hideIntro()
   buildRound(data)
   startCountdown(data.grid.rows * data.grid.cols * data.intervalMs)
   show('game')
