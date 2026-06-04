@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh">
+<html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>大屏 · Who Is She</title>
+  <title data-i18n="host_title">Pantalla · Who Is She</title>
   <link rel="stylesheet" href="/shared.css" />
   <style>
     .stage { text-align: center; }
@@ -25,34 +25,35 @@
 
     <div id="lobby">
       <div id="qr"></div>
-      <p>扫码加入：<b id="joinUrl"></b></p>
+      <p><span data-i18n="scan_join">Escanea para unirte:</span> <b id="joinUrl"></b></p>
       <div class="players" id="players"></div>
-      <button id="startBtn">开始游戏</button>
+      <button id="startBtn" data-i18n="btn_start">Empezar juego</button>
       <p id="lobbyMsg"></p>
     </div>
 
     <div id="game" class="hidden">
-      <p>第 <span id="qIndex"></span> / <span id="qTotal"></span> 题 · 已答 <span id="answered">0</span> 人</p>
+      <p id="progress"></p>
       <div class="photo-box">
         <img id="photo" alt="" />
         <div class="grid" id="grid"></div>
       </div>
-      <button id="skipBtn">跳过本轮</button>
+      <button id="skipBtn" data-i18n="btn_skip">Saltar ronda</button>
     </div>
 
     <div id="result" class="hidden">
-      <h2>答案：<span id="answer"></span></h2>
+      <h2><span data-i18n="answer_label">Respuesta:</span> <span id="answer"></span></h2>
       <ul class="lead" id="roundResults"></ul>
       <ol class="lead" id="leaderboard"></ol>
-      <button id="nextBtn">下一题 →</button>
+      <button id="nextBtn" data-i18n="btn_next">Siguiente →</button>
     </div>
 
     <div id="over" class="hidden">
-      <h2>🏆 最终排行</h2>
+      <h2 data-i18n="final_ranking">🏆 Clasificación final</h2>
       <ol class="lead" id="finalBoard"></ol>
     </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/host.js"></script>
 </body>
 </html>

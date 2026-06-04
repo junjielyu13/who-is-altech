@@ -1,21 +1,22 @@
 // public/admin.js
 const $ = (id) => document.getElementById(id)
+const { t, applyI18n, mountLangSwitch } = I18N
 
 async function refresh() {
   const quiz = await (await fetch('/api/quiz')).json()
   const list = $('list'); list.innerHTML = ''
   quiz.questions.forEach((q, i) => {
     const li = document.createElement('li')
-    const aliasPart = q.aliases.length ? `（别名：${q.aliases.join('、')}）` : ''
-    li.textContent = `#${i + 1} ${q.answer} — ${q.grid.rows}×${q.grid.cols}，${q.intervalMs}ms${aliasPart}`
+    const aliasPart = q.aliases.length ? t('alias_part', { aliases: q.aliases.join('、') }) : ''
+    li.textContent = `#${i + 1} ${q.answer} — ${q.grid.rows}×${q.grid.cols}, ${q.intervalMs}ms${aliasPart}`
     list.appendChild(li)
   })
 }
 
 $('add').onclick = async () => {
   const file = $('photo').files[0]
-  if (!file) { $('msg').textContent = '请选择图片'; return }
-  if (!$('answer').value.trim()) { $('msg').textContent = '请填正确答案'; return }
+  if (!file) { $('msg').textContent = t('msg_pick_photo'); return }
+  if (!$('answer').value.trim()) { $('msg').textContent = t('msg_need_answer'); return }
   const fd = new FormData()
   fd.append('photo', file)
   fd.append('answer', $('answer').value)
@@ -25,12 +26,15 @@ $('add').onclick = async () => {
   fd.append('intervalMs', $('interval').value)
   const res = await fetch('/api/questions', { method: 'POST', body: fd })
   const data = await res.json()
-  if (!res.ok) { $('msg').textContent = '错误：' + data.error; return }
-  $('msg').textContent = '已添加 ✓'
+  if (!res.ok) { $('msg').textContent = t('msg_error') + data.error; return }
+  $('msg').textContent = t('msg_added')
   $('photo').value = ''
   $('answer').value = ''
   $('aliases').value = ''
   refresh()
 }
 
+applyI18n()
+mountLangSwitch()
+document.addEventListener('i18n:change', () => { $('msg').textContent = ''; refresh() })
 refresh()

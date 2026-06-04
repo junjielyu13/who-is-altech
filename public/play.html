@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh">
+<html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>加入 · Who Is She</title>
+  <title data-i18n="play_title">Unirse · Who Is She</title>
   <link rel="stylesheet" href="/shared.css" />
   <style>
     .big { width: 100%; font-size: 20px; padding: 16px; }
@@ -18,19 +18,20 @@
     <h1>🕵️ Who Is She</h1>
 
     <div id="joinView">
-      <input type="text" id="nickname" class="big" placeholder="你的昵称" maxlength="20" />
-      <button id="joinBtn" class="big" style="margin-top:12px">加入游戏</button>
+      <input type="text" id="nickname" class="big" data-i18n-ph="ph_nickname" placeholder="" maxlength="20" />
+      <button id="joinBtn" class="big" style="margin-top:12px" data-i18n="btn_join">Unirse al juego</button>
     </div>
 
     <div id="playView" class="hidden">
-      <p>嗨 <b id="me"></b>！看大屏，猜猜是谁 👀</p>
-      <input type="text" id="guess" class="big" placeholder="输入名字" />
-      <button id="submitBtn" class="big" style="margin-top:12px">提交答案</button>
+      <p id="greeting"></p>
+      <input type="text" id="guess" class="big" data-i18n-ph="ph_guess" placeholder="" />
+      <button id="submitBtn" class="big" style="margin-top:12px" data-i18n="btn_submit">Enviar respuesta</button>
       <div class="status" id="status"></div>
-      <p>当前总分：<b id="score">0</b></p>
+      <p><span data-i18n="total_score">Puntos totales:</span> <b id="score">0</b></p>
     </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/i18n.js"></script>
   <script src="/play.js"></script>
 </body>
 </html>

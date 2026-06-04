@@ -1,9 +1,12 @@
 // public/play.js
 const socket = io()
 const $ = (id) => document.getElementById(id)
+const { t, applyI18n, mountLangSwitch } = I18N
 let myScore = 0
 let canSubmit = false
 let joined = false
+let statusKey = null      // current status message key, for re-render on lang change
+let statusVars = null
 
 // 重连时恢复昵称
 const savedNick = localStorage.getItem('wis_nick')
@@ -12,12 +15,24 @@ if (savedNick) $('nickname').value = savedNick
 let clientId = localStorage.getItem('wis_id')
 if (!clientId) { clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('wis_id', clientId) }
 
+function renderGreeting() {
+  $('greeting').textContent = t('greeting', { name: localStorage.getItem('wis_nick') || '' })
+}
+function setStatus(key, vars, cls) {
+  statusKey = key; statusVars = vars || null
+  renderStatus(cls || 'status')
+}
+function renderStatus(cls) {
+  $('status').textContent = statusKey ? t(statusKey, statusVars) : ''
+  if (cls) $('status').className = cls
+}
+
 function doJoin(nick) {
   localStorage.setItem('wis_nick', nick)
   socket.emit('player:join', { nickname: nick, clientId })
 }
 
-$('joinBtn').onclick = () => doJoin($('nickname').value.trim() || '玩家')
+$('joinBtn').onclick = () => doJoin($('nickname').value.trim() || t('default_nick'))
 
 socket.on('connect', () => {
   // 断线重连后，如果之前已经加入过，用保存的昵称自动重新加入
@@ -29,7 +44,7 @@ socket.on('connect', () => {
 
 socket.on('player:joined', () => {
   joined = true
-  $('me').textContent = localStorage.getItem('wis_nick')
+  renderGreeting()
   $('joinView').classList.add('hidden')
   $('playView').classList.remove('hidden')
 })
@@ -39,8 +54,7 @@ socket.on('round:start', () => {
   $('guess').value = ''
   $('guess').disabled = false
   $('submitBtn').disabled = false
-  $('status').textContent = ''
-  $('status').className = 'status'
+  setStatus(null)
 })
 
 $('submitBtn').onclick = () => {
@@ -51,22 +65,24 @@ $('submitBtn').onclick = () => {
 }
 
 socket.on('player:result', (r) => {
-  if (r.alreadySubmitted) { $('status').textContent = '你这轮已经答过啦'; return }
-  if (r.rejected) { $('status').textContent = '现在不能提交'; return }
+  if (r.alreadySubmitted) { setStatus('status_already'); return }
+  if (r.rejected) { setStatus('status_cannot'); return }
   canSubmit = false
   $('guess').disabled = true
   $('submitBtn').disabled = true
   if (r.correct) {
-    $('status').textContent = `答对！+${r.score} 分 🎉`
-    $('status').className = 'status ok'
+    setStatus('status_correct', { score: r.score }, 'status ok')
     myScore += r.score
     $('score').textContent = myScore
   } else {
-    $('status').textContent = '已锁定，等待揭晓…'
-    $('status').className = 'status'
+    setStatus('status_locked')
   }
 })
 
 socket.on('round:end', () => {
-  $('status').textContent = $('status').textContent.includes('答对') ? $('status').textContent : '本轮结束，看大屏揭晓 👀'
+  if (statusKey !== 'status_correct') setStatus('status_round_end')
 })
+
+applyI18n()
+mountLangSwitch()
+document.addEventListener('i18n:change', () => { if (joined) renderGreeting(); renderStatus($('status').className) })

@@ -165,7 +165,8 @@ io.on('connection', (socket) => {
       game.startGame()
       startRoundBroadcast()
     } catch (err) {
-      socket.emit('host:error', { error: err.message })
+      // startGame only throws when the quiz is empty; send a code so the client localizes it.
+      socket.emit('host:error', { code: 'empty_quiz' })
     }
   })
 
