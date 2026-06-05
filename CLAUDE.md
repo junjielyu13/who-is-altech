@@ -50,15 +50,16 @@ phones and plays through live.
 ### Socket protocol (client ↔ server)
 
 Client → server: `player:join {nickname, clientId}`, `player:submit {guess}`, `host:start`,
-`host:skip`, `host:next`, `host:restart`, `host:hello`.
+`host:skip`, `host:next`, `host:restart`, `host:pause`, `host:resume`, `host:hello`.
 
 Server → clients: `player:joined`, `player:result`, `lobby:update {players}`,
 `game:countdown {from}`,
 `round:start {index,total,photoUrl,nextPhotoUrl,grid,revealOrder,intervalMs}` (`nextPhotoUrl` lets the
 big screen preload the next photo so tiles reveal with no load flash),
 `round:reveal {revealedCount}`, `round:answered {answeredCount, nickname}`,
-`round:end {answer, results, leaderboard}`, `game:over {leaderboard}`, `game:reset`,
-`state:full {phase, players, round}` (host reconnect restore), `host:error {code}`.
+`round:end {answer, results, leaderboard}`, `game:pause {phase}`, `game:resume {phase}`,
+`game:over {leaderboard}`, `game:reset`,
+`state:full {phase, players, round, paused}` (host reconnect restore), `host:error {code}`.
 Every `leaderboard`/`players` entry carries `{id, nickname, totalScore, connected}` — the host dims
 `connected: false` rows.
 
@@ -77,6 +78,14 @@ Key behaviors to preserve when editing:
   `buildQuiz`, which stays deterministic, so order is stable for the whole game).
 - **The result screen auto-advances after 5s** (host-side timer → `host:next`); the Next button still
   works and cancels the timer.
+- **Pause is server-authoritative.** The host's Pause button (shown during a round and the result
+  screen) toggles `host:pause`/`host:resume`. While paused, `paused` is set in `server/index.js` (an
+  I/O-layer flag — `GameState` stays pure): the reveal loop is stopped and `player:submit` is ignored.
+  Clients freeze on `game:pause` (big-screen countdown ring, each phone's timer bar, phones disable
+  the guess box) and resume from where they left off on `game:resume` — not from the start. Resuming
+  REVEALING restarts the reveal interval at the same `revealedCount`; the result screen's 5s
+  auto-advance freezes/continues. Any phase transition (`finishRound`, `host:next`, restart, new round)
+  clears `paused`.
 - **Localize via codes, not strings.** Server sends error/status *codes* (e.g. `empty_quiz`); the
   client translates with `t()`. Every UI string is a key in `i18n.js` — add new keys to **both** `es`
   and `zh` (they must stay at parity).

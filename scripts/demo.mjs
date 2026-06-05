@@ -56,6 +56,16 @@ await host.page.click('#startBtn')
 log('host started — 3-2-1 countdown for everyone')
 await sleep(4500) // let the 3-2-1 intro finish and round 1 begin
 log('round 1 — tiles revealing, 20s countdown (watch the bar on the phones too)')
+
+// ---- Pause demo: freeze mid-reveal, hold so you can see it, then resume ----
+await sleep(2000) // let a couple of tiles show first
+log('host hits PAUSE → tiles + countdown ring + phone bars freeze, phones can\'t submit')
+await host.page.click('#pauseBtn')
+await sleep(4500) // hold on the frozen "⏸ En pausa" overlay
+log('host hits RESUME → everything picks up right where it left off')
+await host.page.click('#pauseBtn')
+await sleep(1500)
+
 const ans1 = await currentAnswer()
 await guess(phones[0], ans1)        // Ana — early, correct
 log('Ana locked in (early)')

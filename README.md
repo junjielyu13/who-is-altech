@@ -46,6 +46,10 @@ LAN IP. (Testing solo on one machine? Just open `/play` in another tab.)
    and returns everyone to the waiting room. Players whose phone dropped are **greyed out** but keep
    their score.
 
+The host can hit **Pause** at any point during a round or on the result screen — the photo reveal,
+the on-screen countdown and every phone's timer bar freeze in place, phones can't submit, and the
+auto-advance is held. **Resume** picks up exactly where it left off.
+
 ## Scoring
 
 `score = ceil(1000 × (totalTiles − tilesRevealedWhenYouAnswered) / totalTiles)`, with a floor of 50

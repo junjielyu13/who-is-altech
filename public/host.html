@@ -58,6 +58,40 @@
       animation: chip-pop .35s cubic-bezier(.2,1.4,.4,1); }
     .answered .chip::before { content: '✓ '; }
     @keyframes chip-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    /* fixed Pause/Resume control, shown only during a round or the result screen */
+    #pauseBtn { position: fixed; bottom: 16px; left: 16px; z-index: 30; padding: 10px 18px; font-size: 16px; }
+    #pauseBtn.paused { background: #ffd166; color: #1a1a2e; }
+    /* dim "paused" overlay over the whole screen */
+    .pause-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+      background: rgba(13,13,26,.72); backdrop-filter: blur(2px); }
+    .pause-overlay.hidden { display: none; } /* beat .hidden's source-order tie with display:grid */
+    .pause-overlay b { font-size: 64px; font-weight: 800; color: #ffd166; letter-spacing: 1px;
+      animation: pause-breathe 1.6s ease-in-out infinite; }
+    @keyframes pause-breathe { 0%,100% { opacity: .65; } 50% { opacity: 1; } }
+    /* result screen: leaderboard and the "what everyone wrote" wall, side by side */
+    .result-cols { display: flex; gap: 32px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+    .result-cols .board { flex: 0 1 600px; margin: 16px 0; }
+    .guess-wall { flex: 0 1 400px; margin: 16px 0; }
+    .guess-wall h3 { font-size: 22px; margin: 0 0 14px; color: #cfd6e6; }
+    .guess-list { display: flex; flex-wrap: wrap; gap: 14px 16px; justify-content: center; }
+    .guess-wall .empty { color: #8893a8; font-style: italic; }
+    /* each guess is a playful speech bubble; correct ones glow green, wrong ones are muted */
+    .bubble-wrap { will-change: transform; }
+    .bubble { position: relative; background: #233056; border-radius: 16px; padding: 10px 18px; max-width: 240px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.35); animation: bubble-pop .45s cubic-bezier(.2,1.5,.45,1) backwards; }
+    .bubble::after { content: ''; position: absolute; left: 22px; bottom: -9px; width: 0; height: 0;
+      border: 9px solid transparent; border-top-color: #233056; border-bottom: 0; }
+    .bubble .said { font-size: 24px; font-weight: 800; color: #fff; line-height: 1.15; word-break: break-word; }
+    .bubble.correct { background: linear-gradient(135deg, #06d6a0, #06a982); box-shadow: 0 6px 20px rgba(6,214,160,.4); }
+    .bubble.correct::after { border-top-color: #06a982; }
+    .bubble.correct .said::after { content: ' ✓'; }
+    .bubble.wrong { background: #3a2b52; }
+    .bubble.wrong::after { border-top-color: #3a2b52; }
+    /* "×N" badge: how many people wrote this same answer */
+    .bubble .count { position: absolute; top: -10px; right: -10px; background: #ffd166; color: #1a1a2e;
+      font-size: 14px; font-weight: 800; padding: 2px 9px; border-radius: 999px; font-variant-numeric: tabular-nums;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+    @keyframes bubble-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     /* leaderboard rows slide to their new rank via FLIP transforms set from JS (.board li.will-change) */
     /* a celebratory flash on rows that climbed in rank */
     .board li.bumped { animation: rank-bump 1s ease; }
@@ -92,7 +126,13 @@
 
     <div id="result" class="hidden">
       <h2><span data-i18n="answer_label">Respuesta:</span> <span id="answer"></span></h2>
-      <ol class="board" id="leaderboard"></ol>
+      <div class="result-cols">
+        <ol class="board" id="leaderboard"></ol>
+        <div class="guess-wall" id="guessWall">
+          <h3 data-i18n="guesses_title">✍️ Lo que escribieron</h3>
+          <div class="guess-list" id="guessList"></div>
+        </div>
+      </div>
       <button id="nextBtn"><span data-i18n="btn_next">Siguiente →</span><span class="next-count" id="nextCount"></span></button>
     </div>
 
@@ -102,6 +142,8 @@
       <button id="restartBtn" data-i18n="btn_restart">Jugar de nuevo</button>
     </div>
   </div>
+  <button id="pauseBtn" class="hidden" data-i18n="btn_pause">⏸ Pausa</button>
+  <div class="pause-overlay hidden" id="pauseOverlay"><b data-i18n="paused_label">⏸ En pausa</b></div>
   <div class="countdown-overlay hidden" id="countdown"><b id="countdownNum"></b></div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/i18n.js"></script>

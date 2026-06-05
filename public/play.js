@@ -9,6 +9,7 @@ let statusKey = null      // current status message key, for re-render on lang c
 let statusVars = null
 let pendingResult = null  // this round's result, revealed only after the round closes
 let cdTimers = []         // pending 3-2-1 countdown ticks
+let paused = false        // host paused the game: bar frozen, submit blocked
 
 // 重连时恢复昵称
 const savedNick = localStorage.getItem('wis_nick')
@@ -32,8 +33,11 @@ function renderWaitPlayers(players) {
 
 // Round timer bar: depletes over the round and turns red in the last 5s. Frozen on round close.
 let barTimer = null
+let barTotalMs = 0      // this round's full duration, to compute remaining time on pause
+let barRemainingMs = 0  // time left when paused, to resume the bar from
 function startBar(totalMs) {
   stopBar()
+  barTotalMs = totalMs
   const bar = $('timebar')
   bar.classList.remove('urgent')
   bar.style.transition = 'none'
@@ -50,6 +54,26 @@ function stopBar() {
   const bar = $('timebar')
   bar.style.transition = 'none'
   bar.style.width = getComputedStyle(bar).width // freeze where it is
+}
+// Freeze the bar and remember how much time was left (from its current width fraction).
+function pauseBar() {
+  const bar = $('timebar')
+  const track = bar.parentElement
+  const frac = bar.getBoundingClientRect().width / (track.getBoundingClientRect().width || 1)
+  barRemainingMs = Math.max(0, frac * barTotalMs)
+  stopBar()
+}
+// Continue depleting from the frozen width to empty over the remaining time.
+function resumeBar(ms) {
+  if (barTimer) { clearTimeout(barTimer); barTimer = null }
+  const bar = $('timebar')
+  void bar.offsetWidth
+  requestAnimationFrame(() => {
+    bar.style.transition = `width ${ms}ms linear`
+    bar.style.width = '0%'
+  })
+  if (ms > 5000) barTimer = setTimeout(() => bar.classList.add('urgent'), ms - 5000)
+  else bar.classList.add('urgent')
 }
 function renderGreeting() {
   $('greeting').textContent = t('greeting', { name: localStorage.getItem('wis_nick') || '' })
@@ -113,6 +137,7 @@ socket.on('game:countdown', ({ from }) => { runCountdown(from || 3) })
 socket.on('round:start', (data) => {
   hideCountdown()
   canSubmit = true
+  paused = false
   pendingResult = null
   $('guess').value = ''
   $('guess').disabled = false
@@ -123,7 +148,7 @@ socket.on('round:start', (data) => {
 })
 
 $('submitBtn').onclick = () => {
-  if (!canSubmit) return
+  if (!canSubmit || paused) return
   const guess = $('guess').value.trim()
   if (!guess) return
   socket.emit('player:submit', { guess })
@@ -141,7 +166,26 @@ socket.on('player:result', (r) => {
   setStatus('status_locked')
 })
 
+// Pause only affects the phone mid-round (while tiles are revealing). On the result screen the
+// phone shows its outcome, so we ignore pause there.
+socket.on('game:pause', ({ phase }) => {
+  if (phase !== 'REVEALING') return
+  paused = true
+  pauseBar()
+  $('guess').disabled = true
+  $('submitBtn').disabled = true
+  setStatus('status_paused')
+})
+socket.on('game:resume', ({ phase }) => {
+  if (phase !== 'REVEALING') return
+  paused = false
+  resumeBar(barRemainingMs)
+  if (canSubmit) { $('guess').disabled = false; $('submitBtn').disabled = false; setStatus(null) }
+  else if (pendingResult) setStatus('status_locked') // they'd already locked in before the pause
+})
+
 socket.on('round:end', () => {
+  paused = false
   stopBar()
   // round closed → now it's safe to reveal this player's outcome and update their total
   if (pendingResult && pendingResult.correct) {
@@ -160,6 +204,7 @@ socket.on('game:reset', () => {
   myScore = 0
   $('score').textContent = '0'
   canSubmit = false
+  paused = false
   pendingResult = null
   setStatus(null)
   hideCountdown()

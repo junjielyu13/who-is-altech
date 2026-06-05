@@ -7,15 +7,19 @@ const { t, applyI18n, mountLangSwitch } = I18N
 let revealOrder = []
 let prog = { i: 0, n: 0, a: 0 }      // current round progress, for re-render on lang change
 let cdInterval = null                // countdown timer handle
+let cdEnd = 0                        // wall-clock time the countdown ends (for pause/resume)
 let nextTimer = null                 // auto-advance timer on the result screen
+let nextN = 0                        // remaining seconds on the result auto-advance (frozen on pause)
+let paused = false                   // host pressed Pause: timers frozen, overlay shown
+let cdFrozenMs = null                // round time left when paused, to resume the ring from
 
 // Kahoot-style countdown: counts down `totalMs` to 0, ring depletes, turns red + pulses in the last 5s.
 function startCountdown(totalMs) {
   stopCountdown()
   const timer = $('timer')
-  const end = performance.now() + totalMs
+  cdEnd = performance.now() + totalMs
   const tick = () => {
-    const remain = Math.max(0, end - performance.now())
+    const remain = Math.max(0, cdEnd - performance.now())
     const pct = totalMs > 0 ? (remain / totalMs) * 100 : 0
     const urgent = remain > 0 && remain <= 5000
     $('timerNum').textContent = Math.ceil(remain / 1000)
@@ -55,20 +59,50 @@ function runIntro(from) {
 // Clicking the button (or any navigation) cancels the timer via clearAutoNext().
 function scheduleAutoNext() {
   clearAutoNext()
-  let n = 5
-  $('nextCount').textContent = n
+  nextN = 5
+  $('nextCount').textContent = nextN
+  runNextTimer()
+}
+// Ticks nextN down to 0 and advances. Split out so pause can stop the ticking while keeping
+// nextN (and the badge) frozen, and resume can pick it up from the same number.
+function runNextTimer() {
+  clearNextTimer()
   nextTimer = setInterval(() => {
-    n -= 1
-    if (n <= 0) { clearAutoNext(); socket.emit('host:next'); return }
-    $('nextCount').textContent = n
+    nextN -= 1
+    if (nextN <= 0) { clearAutoNext(); socket.emit('host:next'); return }
+    $('nextCount').textContent = nextN
   }, 1000)
 }
-function clearAutoNext() {
+function clearNextTimer() {
   if (nextTimer) { clearInterval(nextTimer); nextTimer = null }
+}
+function clearAutoNext() {
+  clearNextTimer()
+  nextN = 0
   $('nextCount').textContent = ''
 }
 // Preload a photo so the next round's tiles reveal instantly, with no load flash.
 function preload(url) { if (url) { const img = new Image(); img.src = url } }
+
+// ---- Pause / Resume ----
+// The Pause button shows only mid-game (a round or the result screen); hidden in lobby/over.
+function showPauseBtn(on) { $('pauseBtn').classList.toggle('hidden', !on) }
+function setPauseUi() {
+  $('pauseBtn').textContent = t(paused ? 'btn_resume' : 'btn_pause')
+  $('pauseBtn').classList.toggle('paused', paused)
+  $('pauseOverlay').classList.toggle('hidden', !paused)
+}
+// Freeze the live timers in place: capture the round ring's remaining time, stop the auto-advance
+// ticking (keeping its badge frozen). Resume restarts whichever applies to the current phase.
+function pauseTimers() {
+  if (cdInterval) { cdFrozenMs = Math.max(0, cdEnd - performance.now()); stopCountdown() }
+  clearNextTimer()
+}
+function resumeTimers(phase) {
+  if (phase === 'REVEALING' && cdFrozenMs != null) { startCountdown(cdFrozenMs); cdFrozenMs = null }
+  if (phase === 'ROUND_RESULT' && nextN > 0) runNextTimer()
+}
+function clearPause() { paused = false; cdFrozenMs = null; $('pauseOverlay').classList.add('hidden') }
 
 // 加载二维码
 fetch('/api/qrcode').then((r) => r.json()).then(({ url, dataUrl }) => {
@@ -152,6 +186,45 @@ function renderProgress() {
   $('progress').textContent = t('round_progress', prog)
 }
 
+// "What everyone wrote" wall on the result screen: a tally of the *answers* (no names), one bubble
+// per distinct guess with a ×N badge for how many wrote it. Correct guesses glow green; wrong ones
+// are the fun part. Guess text is rendered with textContent → XSS-safe.
+let lastResults = []
+function renderGuesses(results) {
+  lastResults = results || []
+  const c = $('guessList'); c.innerHTML = ''
+  if (!lastResults.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = t('guesses_empty')
+    c.appendChild(e); return
+  }
+  // tally identical answers (case-insensitive, trimmed); keep the first-seen original casing
+  const tally = new Map()
+  for (const r of lastResults) {
+    const text = (r.guess || '').trim()
+    if (!text) continue
+    const key = text.toLowerCase()
+    const e = tally.get(key)
+    if (e) e.count += 1
+    else tally.set(key, { text, count: 1, correct: r.correct })
+  }
+  const items = [...tally.values()].sort((a, b) => b.count - a.count) // most-written answers first
+  items.forEach((it, i) => {
+    const wrap = document.createElement('div')
+    wrap.className = 'bubble-wrap'
+    wrap.style.transform = `rotate(${((i % 3) - 1) * 1.5}deg)` // subtle sticky-note tilt
+    const b = document.createElement('div')
+    b.className = 'bubble ' + (it.correct ? 'correct' : 'wrong')
+    b.style.animationDelay = i * 80 + 'ms'
+    const said = document.createElement('div'); said.className = 'said'; said.textContent = it.text
+    b.appendChild(said)
+    if (it.count > 1) {
+      const n = document.createElement('span'); n.className = 'count'; n.textContent = '×' + it.count
+      b.appendChild(n)
+    }
+    wrap.appendChild(b); c.appendChild(wrap)
+  })
+}
+
 function addAnsweredChip(nickname) {
   if (!nickname) return
   const chip = document.createElement('span')
@@ -185,20 +258,26 @@ $('startBtn').onclick = () => socket.emit('host:start')
 $('skipBtn').onclick = () => socket.emit('host:skip')
 $('nextBtn').onclick = () => { clearAutoNext(); socket.emit('host:next') }
 $('restartBtn').onclick = () => socket.emit('host:restart')
+$('pauseBtn').onclick = () => socket.emit(paused ? 'host:resume' : 'host:pause')
+
+socket.on('game:pause', () => { paused = true; pauseTimers(); setPauseUi() })
+socket.on('game:resume', ({ phase }) => { paused = false; setPauseUi(); resumeTimers(phase) })
 
 socket.on('host:error', ({ code }) => { $('lobbyMsg').textContent = t('error_' + (code || 'generic')) })
 
-socket.on('game:reset', () => { clearAutoNext(); $('lobbyMsg').textContent = ''; hideIntro(); show('lobby') })
+socket.on('game:reset', () => { clearAutoNext(); clearPause(); showPauseBtn(false); $('lobbyMsg').textContent = ''; hideIntro(); show('lobby') })
 
 socket.on('game:countdown', ({ from }) => { runIntro(from || 3) })
 
 socket.on('round:start', (data) => {
   hideIntro()
   clearAutoNext()
+  clearPause()            // a new round always starts running
   buildRound(data)
   preload(data.nextPhotoUrl)
   startCountdown(data.grid.rows * data.grid.cols * data.intervalMs)
   show('game')
+  showPauseBtn(true); setPauseUi()
 })
 socket.on('round:reveal', ({ revealedCount }) => applyReveal(revealedCount))
 
@@ -207,33 +286,41 @@ socket.on('round:answered', ({ answeredCount, nickname }) => {
   addAnsweredChip(nickname)
 })
 
-socket.on('round:end', ({ answer, leaderboard }) => {
+socket.on('round:end', ({ answer, leaderboard, results }) => {
   stopCountdown()
+  clearPause(); setPauseUi()              // a Skip during a pause lands here with no resume event
   $('answer').textContent = answer       // the big screen tells everyone the answer
   show('result')                         // reveal first so the board is visible…
   renderBoard('leaderboard', leaderboard) // …then animate rank changes
+  renderGuesses(results)                 // …and the wall of what everyone wrote
   scheduleAutoNext()                     // auto-advance after 5s
+  showPauseBtn(true)                     // still pausable on the result screen
 })
 
 socket.on('game:over', ({ leaderboard }) => {
   clearAutoNext()
+  clearPause()
+  showPauseBtn(false)
   show('over')                          // reveal first so the bars/scores animate…
   renderBoard('finalBoard', leaderboard) // …then grow them in
 })
 
-socket.on('state:full', ({ phase, players, round }) => {
+socket.on('state:full', ({ phase, players, round, paused: wasPaused }) => {
   renderPlayers(players)
   stopCountdown()
+  clearPause()
   if (phase === 'REVEALING' && round) {
     buildRound(round); applyReveal(round.revealedCount)
     const tiles = round.grid.rows * round.grid.cols
     startCountdown(Math.max(0, tiles - round.revealedCount) * round.intervalMs)
-    show('game')
+    show('game'); showPauseBtn(true)
   }
-  else if (phase === 'ROUND_RESULT' && round) { buildRound(round); applyReveal(round.revealedCount); $('answer').textContent = round.answer; show('result'); renderBoard('leaderboard', round.leaderboard) }
-  else if (phase === 'GAME_OVER') { show('over'); renderBoard('finalBoard', players) }
+  else if (phase === 'ROUND_RESULT' && round) { buildRound(round); applyReveal(round.revealedCount); $('answer').textContent = round.answer; show('result'); renderBoard('leaderboard', round.leaderboard); renderGuesses(round.results); showPauseBtn(true) }
+  else if (phase === 'GAME_OVER') { showPauseBtn(false); show('over'); renderBoard('finalBoard', players) }
+  else showPauseBtn(false)
+  if (wasPaused && (phase === 'REVEALING' || phase === 'ROUND_RESULT')) { paused = true; pauseTimers(); setPauseUi() }
 })
 
 applyI18n()
 mountLangSwitch()
-document.addEventListener('i18n:change', () => { renderProgress() })
+document.addEventListener('i18n:change', () => { renderProgress(); setPauseUi(); if (lastResults.length === 0) renderGuesses(lastResults) })

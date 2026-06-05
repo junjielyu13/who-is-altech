@@ -69,6 +69,18 @@ async function main() {
 
     check('phone shows the round timer bar', await phones[0].isVisible('#timebar'))
 
+    // ---- Pause mid-round: host freezes the game, phones can't submit, then resume ----
+    check('host shows the Pause button during a round', await host.isVisible('#pauseBtn'))
+    await host.click('#pauseBtn')
+    await sleep(300)
+    check('paused overlay appears on the big screen', await host.isVisible('#pauseOverlay'))
+    check('phone shows a paused status', (await phones[0].textContent('#status')).trim().length > 0)
+    check('phone submit is blocked while paused', await phones[0].isDisabled('#submitBtn'))
+    await host.click('#pauseBtn') // resume
+    await sleep(300)
+    check('paused overlay hidden after resume', await host.isHidden('#pauseOverlay'))
+    check('phone submit re-enabled after resume', !(await phones[0].isDisabled('#submitBtn')))
+
     // ---- Round 1: Ana answers via ENTER (lowercased → also exercises fuzzy match) ----
     const ans1 = await currentAnswer(host)
     await phones[0].fill('#guess', ans1.toLowerCase())
@@ -94,6 +106,13 @@ async function main() {
     const barW = (await host.locator('#leaderboard li:first-child .bar').boundingBox())?.width || 0
     check('leader score bar renders with a visible fill', barW > 0)
     check('Next button shows the auto-advance countdown', /\d/.test(await host.textContent('#nextCount')))
+    // the "what everyone wrote" wall tallies answers (no names): the two correct guesses (same answer,
+    // different casing) merge into one ×2 bubble; Cris's wrong "no idea" is the other → 2 bubbles
+    check('guess wall aggregates identical answers into one bubble', (await host.locator('#guessList .bubble').count()) === 2)
+    check('a correct answer bubble is highlighted', (await host.locator('#guessList .bubble.correct').count()) >= 1)
+    check('the wall shows what players actually typed', (await host.textContent('#guessList')).includes('no idea'))
+    check('the wall no longer shows who wrote each answer', !/Ana|Bo|Cris/.test(await host.textContent('#guessList')))
+    check('duplicate answers show a ×N count badge', (await host.locator('#guessList .count').count()) >= 1)
     // now the phone reveals its own outcome + updated total
     await phones[0].waitForSelector('#status.ok', { timeout: 4000 })
     check('phone reveals success + score after the round closes', (await phones[0].textContent('#status')).includes('+'))

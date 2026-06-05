@@ -24,6 +24,7 @@ const io = new Server(server)
 const game = new GameState()
 let currentRevealOrder = []
 let countingDown = false // true during the 3-2-1 intro between host:start and the first round
+let paused = false        // host pressed Pause: reveal loop is frozen and submits are blocked
 
 // 静态资源
 app.use(express.static(path.join(ROOT, 'public')))
@@ -98,6 +99,7 @@ function startRoundBroadcast() {
     ;[order[i], order[j]] = [order[j], order[i]]
   }
   currentRevealOrder = order
+  paused = false // a fresh round always starts running
   const next = game.quiz.questions[game.currentIndex + 1]
   io.emit('round:start', {
     index: game.currentIndex,
@@ -108,6 +110,12 @@ function startRoundBroadcast() {
     revealOrder: order,
     intervalMs: q.intervalMs,
   })
+  runRevealLoop(q.intervalMs)
+}
+
+// The tile-reveal interval. Pulled out of startRoundBroadcast so host:resume can restart it
+// from wherever it was frozen (same revealedCount), not from the beginning.
+function runRevealLoop(intervalMs) {
   stopReveal()
   revealTimer = setInterval(() => {
     const ok = game.revealNext()
@@ -116,21 +124,28 @@ function startRoundBroadcast() {
       stopReveal()
       finishRound()
     }
-  }, q.intervalMs)
+  }, intervalMs)
 }
 
 function finishRound() {
   if (game.phase !== 'REVEALING') return
   stopReveal()
+  paused = false // leaving REVEALING — any pause is cleared
   game.endRound()
   const q = game.currentQuestion()
-  const results = [...game.submissions.entries()].map(([id, s]) => ({
+  io.emit('round:end', { answer: q.answer, results: roundResults(), leaderboard: game.leaderboard() })
+}
+
+// What each player submitted this round — `guess` is the raw text they typed, shown on the
+// big screen's "what everyone wrote" wall (rendered with textContent, so it's XSS-safe).
+function roundResults() {
+  return [...game.submissions.entries()].map(([id, s]) => ({
     nickname: game.players.get(id)?.nickname || '?',
+    guess: s.guess,
     correct: s.correct,
     score: s.score,
     revealedAtSubmit: s.revealedAtSubmit,
   }))
-  io.emit('round:end', { answer: q.answer, results, leaderboard: game.leaderboard() })
 }
 
 io.on('connection', (socket) => {
@@ -144,6 +159,7 @@ io.on('connection', (socket) => {
   })
 
   socket.on('player:submit', ({ guess }) => {
+    if (paused) return // game is paused: ignore guesses (phones also disable the button)
     const result = game.submitGuess(socket.data.playerId, guess)
     socket.emit('player:result', result)
     // Only broadcast when a fresh submission was recorded (not a duplicate/rejected attempt).
@@ -171,9 +187,10 @@ io.on('connection', (socket) => {
         revealedCount: game.revealedCount,
         answer: game.phase === 'ROUND_RESULT' ? q.answer : null,
         leaderboard: game.leaderboard(),
+        results: game.phase === 'ROUND_RESULT' ? roundResults() : null,
       }
     }
-    socket.emit('state:full', { phase: game.phase, players: game.leaderboard(), round })
+    socket.emit('state:full', { phase: game.phase, players: game.leaderboard(), round, paused })
   })
 
   socket.on('host:start', async () => {
@@ -196,8 +213,27 @@ io.on('connection', (socket) => {
 
   socket.on('host:skip', () => finishRound())
 
+  // Pause/resume — only meaningful mid-game (revealing tiles, or the result screen's auto-advance).
+  // REVEALING: freeze the reveal loop so no more tiles show and submits are blocked.
+  // ROUND_RESULT: the 5s auto-advance is host-side, so we just flag + broadcast for the UI to freeze.
+  socket.on('host:pause', () => {
+    if (paused) return
+    if (game.phase !== 'REVEALING' && game.phase !== 'ROUND_RESULT') return
+    paused = true
+    if (game.phase === 'REVEALING') stopReveal()
+    io.emit('game:pause', { phase: game.phase })
+  })
+
+  socket.on('host:resume', () => {
+    if (!paused) return
+    paused = false
+    if (game.phase === 'REVEALING') runRevealLoop(game.currentQuestion().intervalMs)
+    io.emit('game:resume', { phase: game.phase })
+  })
+
   socket.on('host:restart', async () => {
     stopReveal()
+    paused = false
     game.restart()
     game.loadQuiz(await loadQuiz())
     io.emit('game:reset')
@@ -206,6 +242,7 @@ io.on('connection', (socket) => {
 
   socket.on('host:next', () => {
     if (game.phase !== 'ROUND_RESULT' && game.phase !== 'GAME_OVER') return
+    paused = false // advancing past the result screen clears any pause
     game.nextRound()
     if (game.phase === 'GAME_OVER') {
       io.emit('game:over', { leaderboard: game.leaderboard() })
